@@ -80,6 +80,27 @@ curl http://localhost:8007/health  # Moderation
 curl http://localhost:8008/health  # Analytics
 ```
 
+## Swagger Documentation
+
+Каждый сервис имеет Swagger/OpenAPI документацию, доступную через веб-интерфейс:
+
+- **Auth Service**: http://localhost:8001/swagger/index.html
+- **Post Service**: http://localhost:8002/swagger/index.html
+- **Feed Service**: http://localhost:8003/swagger/index.html
+- **Wallet Service**: http://localhost:8005/swagger/index.html
+- **Analytics Service**: http://localhost:8008/swagger/index.html
+
+Для генерации документации используйте скрипт:
+```bash
+./scripts/generate-swagger.sh
+```
+
+Или вручную для каждого сервиса:
+```bash
+cd services/<service-name>
+swag init -g main.go --output docs
+```
+
 ## API Endpoints
 
 ### Auth Service (8001)
