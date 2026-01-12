@@ -1,0 +1,83 @@
+.PHONY: build build-all test clean docker-build docker-up docker-down
+
+# Build all services
+build-all:
+	@echo "Building all services..."
+	@cd services/auth && go build -o ../../bin/auth-service .
+	@cd services/post && go build -o ../../bin/post-service .
+	@cd services/feed && go build -o ../../bin/feed-service .
+	@cd services/fanout && go build -o ../../bin/fanout-service .
+	@cd services/wallet && go build -o ../../bin/wallet-service .
+	@cd services/notification && go build -o ../../bin/notification-service .
+	@cd services/moderation && go build -o ../../bin/moderation-service .
+	@cd services/analytics && go build -o ../../bin/analytics-service .
+	@echo "Build complete!"
+
+# Build specific service
+build:
+	@echo "Building service: $(SERVICE)"
+	@cd services/$(SERVICE) && go build -o ../../bin/$(SERVICE)-service .
+
+# Run tests
+test:
+	@echo "Running tests..."
+	@go test ./...
+
+# Clean build artifacts
+clean:
+	@echo "Cleaning..."
+	@rm -rf bin/
+	@go clean
+
+# Docker commands
+docker-build:
+	@echo "Building Docker images..."
+	@docker-compose build
+
+docker-up:
+	@echo "Starting services..."
+	@docker-compose up -d
+
+docker-down:
+	@echo "Stopping services..."
+	@docker-compose down
+
+docker-logs:
+	@docker-compose logs -f
+
+# Run service locally (requires postgres and redis running)
+run-auth:
+	@cd services/auth && go run main.go
+
+run-post:
+	@cd services/post && go run main.go
+
+run-feed:
+	@cd services/feed && go run main.go
+
+run-fanout:
+	@cd services/fanout && go run main.go
+
+run-wallet:
+	@cd services/wallet && go run main.go
+
+run-notification:
+	@cd services/notification && go run main.go
+
+run-moderation:
+	@cd services/moderation && go run main.go
+
+run-analytics:
+	@cd services/analytics && go run main.go
+
+# Database migrations (using GORM auto-migrate)
+migrate:
+	@echo "Running migrations..."
+	@go run scripts/migrate.go
+
+# Install dependencies
+deps:
+	@echo "Installing dependencies..."
+	@go mod download
+	@go mod tidy
+

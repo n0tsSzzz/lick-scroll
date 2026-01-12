@@ -1,0 +1,208 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: lick-scroll-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: lickscroll
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: lick-scroll-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: services/auth/Dockerfile
+    container_name: lick-scroll-auth
+    environment:
+      SERVER_PORT: "8001"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: lickscroll
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      JWT_SECRET: ${JWT_SECRET:-change-this-secret-key-in-production}
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  post-service:
+    build:
+      context: .
+      dockerfile: services/post/Dockerfile
+    container_name: lick-scroll-post
+    environment:
+      SERVER_PORT: "8002"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: lickscroll
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      JWT_SECRET: ${JWT_SECRET:-change-this-secret-key-in-production}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-lick-scroll-content}
+    ports:
+      - "8002:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  feed-service:
+    build:
+      context: .
+      dockerfile: services/feed/Dockerfile
+    container_name: lick-scroll-feed
+    environment:
+      SERVER_PORT: "8003"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      JWT_SECRET: ${JWT_SECRET:-change-this-secret-key-in-production}
+    ports:
+      - "8003:8003"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  fanout-service:
+    build:
+      context: .
+      dockerfile: services/fanout/Dockerfile
+    container_name: lick-scroll-fanout
+    environment:
+      SERVER_PORT: "8004"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: lickscroll
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+    ports:
+      - "8004:8004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  wallet-service:
+    build:
+      context: .
+      dockerfile: services/wallet/Dockerfile
+    container_name: lick-scroll-wallet
+    environment:
+      SERVER_PORT: "8005"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: lickscroll
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      JWT_SECRET: ${JWT_SECRET:-change-this-secret-key-in-production}
+    ports:
+      - "8005:8005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: services/notification/Dockerfile
+    container_name: lick-scroll-notification
+    environment:
+      SERVER_PORT: "8006"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+    ports:
+      - "8006:8006"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  moderation-service:
+    build:
+      context: .
+      dockerfile: services/moderation/Dockerfile
+    container_name: lick-scroll-moderation
+    environment:
+      SERVER_PORT: "8007"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: lickscroll
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+    ports:
+      - "8007:8007"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  analytics-service:
+    build:
+      context: .
+      dockerfile: services/analytics/Dockerfile
+    container_name: lick-scroll-analytics
+    environment:
+      SERVER_PORT: "8008"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: lickscroll
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      JWT_SECRET: ${JWT_SECRET:-change-this-secret-key-in-production}
+    ports:
+      - "8008:8008"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
+
