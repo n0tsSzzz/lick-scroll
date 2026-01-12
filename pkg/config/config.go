@@ -32,6 +32,8 @@ type Config struct {
 	AWSAccessKeyID     string
 	AWSSecretAccessKey string
 	S3BucketName       string
+	AWSEndpoint        string
+	S3UseSSL           string
 
 	// Services URLs
 	AuthServiceURL        string
@@ -69,6 +71,8 @@ func Load() (*Config, error) {
 		AWSAccessKeyID:     getEnv("AWS_ACCESS_KEY_ID", ""),
 		AWSSecretAccessKey: getEnv("AWS_SECRET_ACCESS_KEY", ""),
 		S3BucketName:       getEnv("S3_BUCKET_NAME", "lick-scroll-content"),
+		AWSEndpoint:        getEnv("AWS_ENDPOINT", ""),
+		S3UseSSL:           getEnv("S3_USE_SSL", "true"),
 
 		AuthServiceURL:        getEnv("AUTH_SERVICE_URL", "http://localhost:8001"),
 		PostServiceURL:        getEnv("POST_SERVICE_URL", "http://localhost:8002"),
