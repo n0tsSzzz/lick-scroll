@@ -8,7 +8,8 @@ RUN go mod download
 COPY . .
 
 WORKDIR /app/services/moderation
-RUN CGO_ENABLED=0 GOOS=linux go build -o /app/moderation-service .
+# Build with memory optimizations
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -trimpath -o /app/moderation-service .
 
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates

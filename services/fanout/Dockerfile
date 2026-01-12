@@ -8,7 +8,8 @@ RUN go mod download
 COPY . .
 
 WORKDIR /app/services/fanout
-RUN CGO_ENABLED=0 GOOS=linux go build -o /app/fanout-service .
+# Build with memory optimizations
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -trimpath -o /app/fanout-service .
 
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates

@@ -14,7 +14,8 @@ COPY . .
 WORKDIR /app/services/post
 # Generate Swagger docs
 RUN swag init -g main.go --output docs --parseDependency --parseInternal || true
-RUN CGO_ENABLED=0 GOOS=linux go build -o /app/post-service .
+# Build with memory optimizations
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -trimpath -o /app/post-service .
 
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates
