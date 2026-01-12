@@ -1,6 +1,8 @@
 package main
 
 import (
+	"time"
+
 	"lick-scroll/pkg/cache"
 	"lick-scroll/pkg/config"
 	"lick-scroll/pkg/jwt"
@@ -68,7 +70,7 @@ func main() {
 
 	api := r.Group("/api/v1")
 	api.Use(middleware.AuthMiddleware(jwtService))
-	api.Use(middleware.RateLimitMiddleware(redisClient, 200, 60)) // 200 requests per minute
+	api.Use(middleware.RateLimitMiddleware(redisClient, 200, time.Minute)) // 200 requests per minute
 
 	{
 		api.GET("/feed", feedHandler.GetFeed)

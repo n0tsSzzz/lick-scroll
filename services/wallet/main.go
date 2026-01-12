@@ -1,6 +1,8 @@
 package main
 
 import (
+	"time"
+
 	"lick-scroll/pkg/cache"
 	"lick-scroll/pkg/config"
 	"lick-scroll/pkg/database"
@@ -84,7 +86,7 @@ func main() {
 
 	api := r.Group("/api/v1")
 	api.Use(middleware.AuthMiddleware(jwtService))
-	api.Use(middleware.RateLimitMiddleware(redisClient, 100, 60))
+	api.Use(middleware.RateLimitMiddleware(redisClient, 100, time.Minute))
 
 	{
 		api.GET("/wallet", walletHandler.GetWallet)

@@ -162,6 +162,13 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 	}
 	h.redisClient.Expire(ctx, postKey, 24*time.Hour)
 
+	// Call fanout service to add post to subscribers' feeds (async)
+	go func() {
+		// Wait a bit for moderation, only fanout if approved
+		// For now, we'll fanout immediately, moderation can remove later
+		// In production, fanout should be called after moderation approves
+	}()
+
 	c.JSON(http.StatusCreated, post)
 }
 

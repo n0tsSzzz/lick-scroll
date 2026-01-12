@@ -1,6 +1,8 @@
 package main
 
 import (
+	"time"
+
 	"lick-scroll/pkg/cache"
 	"lick-scroll/pkg/config"
 	"lick-scroll/pkg/database"
@@ -102,7 +104,7 @@ func main() {
 
 	api := r.Group("/api/v1")
 	api.Use(middleware.AuthMiddleware(jwtService))
-	api.Use(middleware.RateLimitMiddleware(redisClient, 100, 60)) // 100 requests per minute
+	api.Use(middleware.RateLimitMiddleware(redisClient, 100, time.Minute)) // 100 requests per minute
 
 	{
 		api.POST("/posts", postHandler.CreatePost)

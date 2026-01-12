@@ -70,16 +70,19 @@ func (h *FanoutHandler) FanoutPost(c *gin.Context) {
 		}
 	}
 
-	// Cache post metadata for quick access
+	// Post metadata should already be cached by post service
+	// We only cache it here if it doesn't exist
 	postKey := fmt.Sprintf("post:%s", req.PostID)
-	postData := map[string]interface{}{
-		"id":         req.PostID,
-		"creator_id": req.CreatorID,
-		"category":   req.Category,
+	exists, _ := h.redisClient.Exists(ctx, postKey).Result()
+	if exists == 0 {
+		// Cache basic metadata if post service hasn't cached it yet
+		h.redisClient.HSet(ctx, postKey, "id", req.PostID)
+		h.redisClient.HSet(ctx, postKey, "creator_id", req.CreatorID)
+		if req.Category != "" {
+			h.redisClient.HSet(ctx, postKey, "category", req.Category)
+		}
+		h.redisClient.Expire(ctx, postKey, 24*time.Hour)
 	}
-	postJSON, _ := json.Marshal(postData)
-	h.redisClient.HSet(ctx, postKey, "data", string(postJSON))
-	h.redisClient.Expire(ctx, postKey, 24*time.Hour)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":      "Post fanned out successfully",

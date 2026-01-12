@@ -77,7 +77,7 @@ func main() {
 
 	api := r.Group("/api/v1")
 	api.Use(middleware.AuthMiddleware(jwtService))
-	api.Use(middleware.RateLimitMiddleware(redisClient, 100, 60))
+	api.Use(middleware.RateLimitMiddleware(redisClient, 100, time.Minute))
 
 	{
 		api.GET("/analytics/creator/stats", analyticsHandler.GetCreatorStats)
