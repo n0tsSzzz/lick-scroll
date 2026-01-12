@@ -162,18 +162,18 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 	}
 	h.redisClient.Expire(ctx, postKey, 24*time.Hour)
 
-	// For MVP: Add post to creator's own feed automatically
+	// Add post to global feed (like TikTok - all viewers see all posts)
 	// In production, this should happen after moderation approves
-	feedKey := fmt.Sprintf("feed:%s", post.CreatorID)
-	h.redisClient.LPush(ctx, feedKey, post.ID)
-	h.redisClient.LTrim(ctx, feedKey, 0, 999)
-	h.redisClient.Expire(ctx, feedKey, 7*24*time.Hour)
+	globalFeedKey := "feed:global"
+	h.redisClient.LPush(ctx, globalFeedKey, post.ID)
+	h.redisClient.LTrim(ctx, globalFeedKey, 0, 9999) // Keep last 10000 posts
+	h.redisClient.Expire(ctx, globalFeedKey, 7*24*time.Hour)
 
-	// Also add to category feed if category is specified
+	// Also add to global category feed if category is specified
 	if post.Category != "" {
-		categoryFeedKey := fmt.Sprintf("feed:%s:%s", post.CreatorID, post.Category)
+		categoryFeedKey := fmt.Sprintf("feed:global:%s", post.Category)
 		h.redisClient.LPush(ctx, categoryFeedKey, post.ID)
-		h.redisClient.LTrim(ctx, categoryFeedKey, 0, 999)
+		h.redisClient.LTrim(ctx, categoryFeedKey, 0, 9999)
 		h.redisClient.Expire(ctx, categoryFeedKey, 7*24*time.Hour)
 	}
 
