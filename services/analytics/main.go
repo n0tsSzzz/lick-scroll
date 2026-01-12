@@ -11,7 +11,20 @@ import (
 	"lick-scroll/services/analytics/repository"
 
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+	
+	_ "lick-scroll/services/analytics/docs" // Swagger docs
 )
+
+// @title           Analytics Service API
+// @version         1.0
+// @description     Analytics service for creators on Lick Scroll platform
+// @host      localhost:8008
+// @BasePath  /api/v1
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
 
 func main() {
 	cfg, err := config.Load()
@@ -42,6 +55,9 @@ func main() {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
+
+	// Swagger documentation
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	api := r.Group("/api/v1")
 	api.Use(middleware.AuthMiddleware(jwtService))

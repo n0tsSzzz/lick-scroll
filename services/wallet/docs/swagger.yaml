@@ -1,0 +1,135 @@
+basePath: /api/v1
+definitions:
+  handlers.TopUpRequest:
+    properties:
+      amount:
+        minimum: 1
+        type: integer
+    required:
+    - amount
+    type: object
+  models.Wallet:
+    properties:
+      balance:
+        description: Balance in internal currency
+        type: integer
+      created_at:
+        type: string
+      id:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+host: localhost:8005
+info:
+  contact: {}
+  description: Wallet and transaction service for Lick Scroll platform
+  title: Wallet Service API
+  version: "1.0"
+paths:
+  /wallet:
+    get:
+      consumes:
+      - application/json
+      description: Get wallet balance for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Wallet'
+      security:
+      - BearerAuth: []
+      summary: Get wallet
+      tags:
+      - wallet
+  /wallet/purchase/{post_id}:
+    post:
+      consumes:
+      - application/json
+      description: Purchase a post using wallet balance
+      parameters:
+      - description: Post ID
+        in: path
+        name: post_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Purchase post
+      tags:
+      - wallet
+  /wallet/topup:
+    post:
+      consumes:
+      - application/json
+      description: Add funds to user wallet
+      parameters:
+      - description: Top up amount
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.TopUpRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Wallet'
+      security:
+      - BearerAuth: []
+      summary: Top up wallet
+      tags:
+      - wallet
+  /wallet/transactions:
+    get:
+      consumes:
+      - application/json
+      description: Get transaction history for the authenticated user
+      parameters:
+      - description: Number of transactions
+        in: query
+        name: limit
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get transactions
+      tags:
+      - wallet
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

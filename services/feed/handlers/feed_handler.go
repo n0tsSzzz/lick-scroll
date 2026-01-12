@@ -24,6 +24,16 @@ func NewFeedHandler(redisClient *redis.Client, logger *logger.Logger) *FeedHandl
 	}
 }
 
+// GetFeed godoc
+// @Summary      Get user feed
+// @Description  Get personalized feed for the authenticated user
+// @Tags         feed
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        limit query int false "Number of posts to return (max 100)"
+// @Success      200  {object}  map[string]interface{}
+// @Router       /feed [get]
 func (h *FeedHandler) GetFeed(c *gin.Context) {
 	userID := c.GetString("user_id")
 	limit := 20
@@ -70,6 +80,17 @@ func (h *FeedHandler) GetFeed(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"posts": posts, "count": len(posts)})
 }
 
+// GetFeedByCategory godoc
+// @Summary      Get feed by category
+// @Description  Get personalized feed filtered by category
+// @Tags         feed
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        category path string true "Category name"
+// @Param        limit query int false "Number of posts to return (max 100)"
+// @Success      200  {object}  map[string]interface{}
+// @Router       /feed/category/{category} [get]
 func (h *FeedHandler) GetFeedByCategory(c *gin.Context) {
 	userID := c.GetString("user_id")
 	category := c.Param("category")

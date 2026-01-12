@@ -24,6 +24,16 @@ func NewAnalyticsHandler(analyticsRepo repository.AnalyticsRepository, redisClie
 	}
 }
 
+// GetCreatorStats godoc
+// @Summary      Get creator statistics
+// @Description  Get overall statistics for the authenticated creator
+// @Tags         analytics
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string]interface{}
+// @Failure      403  {object}  map[string]string
+// @Router       /analytics/creator/stats [get]
 func (h *AnalyticsHandler) GetCreatorStats(c *gin.Context) {
 	userID := c.GetString("user_id")
 	userRole := c.GetString("user_role")
@@ -62,6 +72,18 @@ func (h *AnalyticsHandler) GetCreatorStats(c *gin.Context) {
 	})
 }
 
+// GetPostStats godoc
+// @Summary      Get post statistics
+// @Description  Get statistics for a specific post
+// @Tags         analytics
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        post_id path string true "Post ID"
+// @Success      200  {object}  map[string]interface{}
+// @Failure      403  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Router       /analytics/creator/posts/{post_id} [get]
 func (h *AnalyticsHandler) GetPostStats(c *gin.Context) {
 	postID := c.Param("post_id")
 	userID := c.GetString("user_id")
@@ -101,6 +123,16 @@ func (h *AnalyticsHandler) GetPostStats(c *gin.Context) {
 	})
 }
 
+// GetRevenue godoc
+// @Summary      Get creator revenue
+// @Description  Get total revenue for the authenticated creator
+// @Tags         analytics
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string]interface{}
+// @Failure      403  {object}  map[string]string
+// @Router       /analytics/creator/revenue [get]
 func (h *AnalyticsHandler) GetRevenue(c *gin.Context) {
 	userID := c.GetString("user_id")
 	userRole := c.GetString("user_role")

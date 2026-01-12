@@ -12,7 +12,20 @@ import (
 	"lick-scroll/services/wallet/repository"
 
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+	
+	_ "lick-scroll/services/wallet/docs" // Swagger docs
 )
+
+// @title           Wallet Service API
+// @version         1.0
+// @description     Wallet and transaction service for Lick Scroll platform
+// @host      localhost:8005
+// @BasePath  /api/v1
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
 
 func main() {
 	cfg, err := config.Load()
@@ -49,6 +62,9 @@ func main() {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
+
+	// Swagger documentation
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	api := r.Group("/api/v1")
 	api.Use(middleware.AuthMiddleware(jwtService))

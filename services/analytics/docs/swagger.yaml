@@ -1,0 +1,98 @@
+basePath: /api/v1
+host: localhost:8008
+info:
+  contact: {}
+  description: Analytics service for creators on Lick Scroll platform
+  title: Analytics Service API
+  version: "1.0"
+paths:
+  /analytics/creator/posts/{post_id}:
+    get:
+      consumes:
+      - application/json
+      description: Get statistics for a specific post
+      parameters:
+      - description: Post ID
+        in: path
+        name: post_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get post statistics
+      tags:
+      - analytics
+  /analytics/creator/revenue:
+    get:
+      consumes:
+      - application/json
+      description: Get total revenue for the authenticated creator
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get creator revenue
+      tags:
+      - analytics
+  /analytics/creator/stats:
+    get:
+      consumes:
+      - application/json
+      description: Get overall statistics for the authenticated creator
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get creator statistics
+      tags:
+      - analytics
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

@@ -1,0 +1,65 @@
+basePath: /api/v1
+host: localhost:8003
+info:
+  contact: {}
+  description: Feed service for Lick Scroll platform
+  title: Feed Service API
+  version: "1.0"
+paths:
+  /feed:
+    get:
+      consumes:
+      - application/json
+      description: Get personalized feed for the authenticated user
+      parameters:
+      - description: Number of posts to return (max 100)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get user feed
+      tags:
+      - feed
+  /feed/category/{category}:
+    get:
+      consumes:
+      - application/json
+      description: Get personalized feed filtered by category
+      parameters:
+      - description: Category name
+        in: path
+        name: category
+        required: true
+        type: string
+      - description: Number of posts to return (max 100)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get feed by category
+      tags:
+      - feed
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

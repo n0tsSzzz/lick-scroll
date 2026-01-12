@@ -41,6 +41,24 @@ type CreatePostRequest struct {
 	Price       int    `form:"price"`
 }
 
+// CreatePost godoc
+// @Summary      Create a new post
+// @Description  Create a new post with media file (photo or video up to 30s). Only creators can create posts.
+// @Tags         posts
+// @Accept       multipart/form-data
+// @Produce      json
+// @Security     BearerAuth
+// @Param        title formData string true "Post title"
+// @Param        description formData string false "Post description"
+// @Param        type formData string true "Post type (photo or video)" Enums(photo, video)
+// @Param        category formData string false "Post category"
+// @Param        price formData int false "Post price in internal currency"
+// @Param        media formData file true "Media file (photo: jpg/jpeg/png, video: mp4/mov/avi)"
+// @Success      201  {object}  models.Post
+// @Failure      400  {object}  map[string]string
+// @Failure      403  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /posts [post]
 func (h *PostHandler) CreatePost(c *gin.Context) {
 	userID := c.GetString("user_id")
 	userRole := c.GetString("user_role")
@@ -147,6 +165,17 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 	c.JSON(http.StatusCreated, post)
 }
 
+// GetPost godoc
+// @Summary      Get post by ID
+// @Description  Get post details by ID and increment view count
+// @Tags         posts
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path string true "Post ID"
+// @Success      200  {object}  models.Post
+// @Failure      404  {object}  map[string]string
+// @Router       /posts/{id} [get]
 func (h *PostHandler) GetPost(c *gin.Context) {
 	postID := c.Param("id")
 
@@ -170,6 +199,17 @@ func (h *PostHandler) GetPost(c *gin.Context) {
 	c.JSON(http.StatusOK, post)
 }
 
+// ListPosts godoc
+// @Summary      List posts
+// @Description  Get list of approved posts with optional category filter
+// @Tags         posts
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        category query string false "Filter by category"
+// @Success      200  {object}  map[string]interface{}
+// @Failure      500  {object}  map[string]string
+// @Router       /posts [get]
 func (h *PostHandler) ListPosts(c *gin.Context) {
 	limit := 20
 	offset := 0
@@ -186,6 +226,21 @@ func (h *PostHandler) ListPosts(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"posts": posts, "count": len(posts)})
 }
 
+// UpdatePost godoc
+// @Summary      Update post
+// @Description  Update post details. Only the creator can update their own posts.
+// @Tags         posts
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path string true "Post ID"
+// @Param        request body object true "Update data" SchemaExample({"title":"Updated title","description":"Updated description","category":"fetish","price":150})
+// @Success      200  {object}  models.Post
+// @Failure      400  {object}  map[string]string
+// @Failure      403  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /posts/{id} [put]
 func (h *PostHandler) UpdatePost(c *gin.Context) {
 	postID := c.Param("id")
 	userID := c.GetString("user_id")
@@ -236,6 +291,19 @@ func (h *PostHandler) UpdatePost(c *gin.Context) {
 	c.JSON(http.StatusOK, post)
 }
 
+// DeletePost godoc
+// @Summary      Delete post
+// @Description  Delete a post. Only the creator can delete their own posts.
+// @Tags         posts
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path string true "Post ID"
+// @Success      200  {object}  map[string]string
+// @Failure      403  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /posts/{id} [delete]
 func (h *PostHandler) DeletePost(c *gin.Context) {
 	postID := c.Param("id")
 	userID := c.GetString("user_id")
@@ -266,6 +334,17 @@ func (h *PostHandler) DeletePost(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Post deleted successfully"})
 }
 
+// GetCreatorPosts godoc
+// @Summary      Get creator posts
+// @Description  Get all posts by a specific creator
+// @Tags         posts
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        creator_id path string true "Creator ID"
+// @Success      200  {object}  map[string]interface{}
+// @Failure      500  {object}  map[string]string
+// @Router       /posts/creator/{creator_id} [get]
 func (h *PostHandler) GetCreatorPosts(c *gin.Context) {
 	creatorID := c.Param("creator_id")
 	limit := 20
