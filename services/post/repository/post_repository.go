@@ -16,6 +16,12 @@ type PostRepository interface {
 	Delete(id string) error
 	IncrementViews(id string) error
 	IncrementPurchases(id string) error
+	// Like methods
+	CreateLike(userID, postID string) error
+	DeleteLike(userID, postID string) error
+	IsLiked(userID, postID string) (bool, error)
+	GetLikedPosts(userID string, limit, offset int) ([]*models.Post, error)
+	GetLikeCount(postID string) (int64, error)
 }
 
 type postRepository struct {
@@ -82,5 +88,44 @@ func (r *postRepository) IncrementViews(id string) error {
 
 func (r *postRepository) IncrementPurchases(id string) error {
 	return r.db.Model(&models.Post{}).Where("id = ?", id).UpdateColumn("purchases", clause.Expr{SQL: "purchases + ?", Vars: []interface{}{1}}).Error
+}
+
+func (r *postRepository) CreateLike(userID, postID string) error {
+	like := &models.Like{
+		UserID: userID,
+		PostID: postID,
+	}
+	return r.db.Create(like).Error
+}
+
+func (r *postRepository) DeleteLike(userID, postID string) error {
+	return r.db.Where("user_id = ? AND post_id = ?", userID, postID).Delete(&models.Like{}).Error
+}
+
+func (r *postRepository) IsLiked(userID, postID string) (bool, error) {
+	var count int64
+	err := r.db.Model(&models.Like{}).Where("user_id = ? AND post_id = ?", userID, postID).Count(&count).Error
+	return count > 0, err
+}
+
+func (r *postRepository) GetLikedPosts(userID string, limit, offset int) ([]*models.Post, error) {
+	var posts []*models.Post
+	query := r.db.Table("posts").
+		Joins("INNER JOIN likes ON posts.id = likes.post_id").
+		Where("likes.user_id = ? AND likes.deleted_at IS NULL", userID).
+		Order("likes.created_at DESC")
+	
+	if limit > 0 {
+		query = query.Limit(limit).Offset(offset)
+	}
+	
+	err := query.Find(&posts).Error
+	return posts, err
+}
+
+func (r *postRepository) GetLikeCount(postID string) (int64, error) {
+	var count int64
+	err := r.db.Model(&models.Like{}).Where("post_id = ?", postID).Count(&count).Error
+	return count, err
 }
 

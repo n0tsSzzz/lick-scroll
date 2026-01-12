@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"lick-scroll/pkg/logger"
@@ -400,5 +401,95 @@ func (h *PostHandler) GetCreatorPosts(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"posts": posts, "count": len(posts)})
+}
+
+// LikePost godoc
+// @Summary      Like a post
+// @Description  Like a post (toggle - if already liked, removes like)
+// @Tags         posts
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path string true "Post ID"
+// @Success      200  {object}  map[string]interface{}
+// @Failure      400  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /posts/{id}/like [post]
+func (h *PostHandler) LikePost(c *gin.Context) {
+	postID := c.Param("id")
+	userID := c.GetString("user_id")
+
+	// Check if post exists
+	_, err := h.postRepo.GetByID(postID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Post not found"})
+		return
+	}
+
+	// Check if already liked
+	isLiked, err := h.postRepo.IsLiked(userID, postID)
+	if err != nil {
+		h.logger.Error("Failed to check like status: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check like status"})
+		return
+	}
+
+	if isLiked {
+		// Unlike
+		if err := h.postRepo.DeleteLike(userID, postID); err != nil {
+			h.logger.Error("Failed to delete like: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to unlike post"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Post unliked", "liked": false})
+	} else {
+		// Like
+		if err := h.postRepo.CreateLike(userID, postID); err != nil {
+			h.logger.Error("Failed to create like: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to like post"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Post liked", "liked": true})
+	}
+}
+
+// GetLikedPosts godoc
+// @Summary      Get liked posts
+// @Description  Get all posts liked by the authenticated user
+// @Tags         posts
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        limit query int false "Number of posts to return (max 100)"
+// @Param        offset query int false "Offset for pagination"
+// @Success      200  {object}  map[string]interface{}
+// @Failure      500  {object}  map[string]string
+// @Router       /posts/liked [get]
+func (h *PostHandler) GetLikedPosts(c *gin.Context) {
+	userID := c.GetString("user_id")
+	limit := 20
+	offset := 0
+
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
+			limit = l
+		}
+	}
+
+	if offsetStr := c.Query("offset"); offsetStr != "" {
+		if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
+			offset = o
+		}
+	}
+
+	posts, err := h.postRepo.GetLikedPosts(userID, limit, offset)
+	if err != nil {
+		h.logger.Error("Failed to get liked posts: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch liked posts"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"posts": posts, "count": len(posts), "offset": offset})
 }
 

@@ -61,7 +61,7 @@ func main() {
 	}
 
 	// Auto migrate
-	if err := db.AutoMigrate(&models.Post{}); err != nil {
+	if err := db.AutoMigrate(&models.Post{}, &models.Like{}); err != nil {
 		log.Error("Failed to migrate database: %v", err)
 		panic(err)
 	}
@@ -113,6 +113,8 @@ func main() {
 		api.PUT("/posts/:id", postHandler.UpdatePost)
 		api.DELETE("/posts/:id", postHandler.DeletePost)
 		api.GET("/posts/creator/:creator_id", postHandler.GetCreatorPosts)
+		api.POST("/posts/:id/like", postHandler.LikePost)
+		api.GET("/posts/liked", postHandler.GetLikedPosts)
 	}
 
 	log.Info("Post service starting on port %s", cfg.ServerPort)

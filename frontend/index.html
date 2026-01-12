@@ -258,6 +258,15 @@
                     </div>
                     <button onclick="getPost()">Получить пост</button>
                     <button onclick="listPosts()" class="btn-secondary">Список постов</button>
+                    <button onclick="getLikedPosts()" class="btn-secondary">Лайкнутые посты</button>
+                </div>
+                <div style="margin-top: 15px;">
+                    <h3>Лайк поста</h3>
+                    <div class="form-group">
+                        <label>Post ID для лайка:</label>
+                        <input type="text" id="likePostId" placeholder="post-id">
+                    </div>
+                    <button onclick="likePost()">Лайкнуть/Убрать лайк</button>
                 </div>
             </div>
             <div id="postResult" class="result" style="display: none;"></div>
