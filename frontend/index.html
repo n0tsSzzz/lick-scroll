@@ -517,6 +517,39 @@
             }
         }
 
+        async function likePost() {
+            const postId = document.getElementById('likePostId').value;
+            if (!postId) {
+                showResult('postResult', { error: 'Post ID is required' }, true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE.post}/posts/${postId}/like`, {
+                    method: 'POST',
+                    headers: getHeaders()
+                });
+
+                const result = await response.json();
+                showResult('postResult', result, !response.ok);
+            } catch (error) {
+                showResult('postResult', { error: error.message }, true);
+            }
+        }
+
+        async function getLikedPosts() {
+            try {
+                const response = await fetch(`${API_BASE.post}/posts/liked`, {
+                    headers: getHeaders()
+                });
+
+                const result = await response.json();
+                showResult('postResult', result, !response.ok);
+            } catch (error) {
+                showResult('postResult', { error: error.message }, true);
+            }
+        }
+
         // Feed Functions
         async function getFeed() {
             try {
