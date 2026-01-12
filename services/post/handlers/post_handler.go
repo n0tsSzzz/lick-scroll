@@ -62,13 +62,7 @@ type CreatePostRequest struct {
 // @Router       /posts [post]
 func (h *PostHandler) CreatePost(c *gin.Context) {
 	userID := c.GetString("user_id")
-	userRole := c.GetString("user_role")
-
-	// Only creators can create posts
-	if userRole != string(models.RoleCreator) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Only creators can create posts"})
-		return
-	}
+	// All users can create posts (like TikTok)
 
 	var req CreatePostRequest
 	if err := c.ShouldBind(&req); err != nil {
@@ -419,13 +413,7 @@ func (h *PostHandler) GetCreatorPosts(c *gin.Context) {
 func (h *PostHandler) LikePost(c *gin.Context) {
 	postID := c.Param("id")
 	userID := c.GetString("user_id")
-	userRole := c.GetString("user_role")
-
-	// Only viewers can like posts (not creators)
-	if userRole != string(models.RoleViewer) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Only viewers can like posts"})
-		return
-	}
+	// All users can like posts (like TikTok)
 
 	// Check if post exists
 	_, err := h.postRepo.GetByID(postID)

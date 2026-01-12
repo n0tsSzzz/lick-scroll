@@ -36,13 +36,7 @@ func NewAnalyticsHandler(analyticsRepo repository.AnalyticsRepository, redisClie
 // @Router       /analytics/creator/stats [get]
 func (h *AnalyticsHandler) GetCreatorStats(c *gin.Context) {
 	userID := c.GetString("user_id")
-	userRole := c.GetString("user_role")
-
-	// Only creators can view their stats
-	if userRole != "creator" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Only creators can view analytics"})
-		return
-	}
+	// All users can view their stats (like TikTok)
 
 	posts, err := h.analyticsRepo.GetCreatorPosts(userID)
 	if err != nil {
@@ -93,13 +87,7 @@ func (h *AnalyticsHandler) GetCreatorStats(c *gin.Context) {
 func (h *AnalyticsHandler) GetPostStats(c *gin.Context) {
 	postID := c.Param("post_id")
 	userID := c.GetString("user_id")
-	userRole := c.GetString("user_role")
-
-	// Only creators can view their post stats
-	if userRole != "creator" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Only creators can view analytics"})
-		return
-	}
+	// All users can view their post stats (like TikTok)
 
 	post, err := h.analyticsRepo.GetPostByID(postID)
 	if err != nil {
@@ -148,13 +136,7 @@ func (h *AnalyticsHandler) GetPostStats(c *gin.Context) {
 // @Router       /analytics/creator/revenue [get]
 func (h *AnalyticsHandler) GetRevenue(c *gin.Context) {
 	userID := c.GetString("user_id")
-	userRole := c.GetString("user_role")
-
-	// Only creators can view revenue
-	if userRole != "creator" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Only creators can view revenue"})
-		return
-	}
+	// All users can view their revenue (like TikTok)
 
 	revenue, err := h.analyticsRepo.GetCreatorRevenue(userID)
 	if err != nil {

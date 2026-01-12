@@ -30,7 +30,6 @@ type RegisterRequest struct {
 	Email    string `json:"email" binding:"required,email"`
 	Username string `json:"username" binding:"required,min=3,max=50"`
 	Password string `json:"password" binding:"required,min=6"`
-	Role     string `json:"role" binding:"oneof=viewer creator"`
 }
 
 type LoginRequest struct {
@@ -83,12 +82,12 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// Create user
+	// Create user (all users can create posts, view, and like - like TikTok)
 	user := &models.User{
 		Email:    req.Email,
 		Username: req.Username,
 		Password: string(hashedPassword),
-		Role:     models.UserRole(req.Role),
+		Role:     models.RoleViewer, // Default role, but all features are available to all
 		IsActive: true,
 	}
 
