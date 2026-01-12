@@ -66,7 +66,6 @@ func (h *NotificationHandler) SendNotification(c *gin.Context) {
 
 	// Store notification in Redis
 	ctx := context.Background()
-	notificationKey := fmt.Sprintf("notification:%s:%d", req.UserID, time.Now().UnixNano())
 	notificationJSON, _ := json.Marshal(notification)
 	
 	// Add to user's notification list
