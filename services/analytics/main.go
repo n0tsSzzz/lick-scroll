@@ -61,13 +61,7 @@ func main() {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
-	// Swagger documentation
-	r.GET("/swagger", func(c *gin.Context) {
-		c.Redirect(302, "/swagger/index.html")
-	})
-	r.GET("/swagger/", func(c *gin.Context) {
-		c.Redirect(302, "/swagger/index.html")
-	})
+	// Swagger documentation - catch-all must be registered last
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	api := r.Group("/api/v1")
