@@ -41,7 +41,7 @@ func (h *ModerationHandler) ReviewPost(c *gin.Context) {
 		return
 	}
 
-	post, err := h.moderationRepo.GetPostByID(postID)
+	_, err := h.moderationRepo.GetPostByID(postID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Post not found"})
 		return
@@ -85,7 +85,7 @@ func (h *ModerationHandler) GetPendingPosts(c *gin.Context) {
 func (h *ModerationHandler) ApprovePost(c *gin.Context) {
 	postID := c.Param("post_id")
 
-	post, err := h.moderationRepo.GetPostByID(postID)
+	_, err := h.moderationRepo.GetPostByID(postID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Post not found"})
 		return
