@@ -4,6 +4,7 @@ WORKDIR /app
 
 # Install swag for Swagger docs generation
 RUN go install github.com/swaggo/swag/cmd/swag@latest
+ENV PATH="${PATH}:/root/go/bin"
 
 COPY go.mod go.sum ./
 RUN go mod download
