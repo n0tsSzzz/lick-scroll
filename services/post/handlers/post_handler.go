@@ -229,16 +229,43 @@ func (h *PostHandler) ListPosts(c *gin.Context) {
 	limit := 20
 	offset := 0
 	category := c.Query("category")
-	status := models.StatusApproved // Only show approved posts
-
-	posts, err := h.postRepo.List(limit, offset, category, status)
+	
+	// For MVP: Show both pending and approved posts (exclude rejected)
+	// Get more posts to combine and sort properly
+	approvedPosts, err := h.postRepo.List(limit*2, 0, category, models.StatusApproved)
 	if err != nil {
-		h.logger.Error("Failed to list posts: %v", err)
+		h.logger.Error("Failed to list approved posts: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch posts"})
 		return
 	}
+	
+	// Get pending posts
+	pendingPosts, err := h.postRepo.List(limit*2, 0, category, models.StatusPending)
+	if err != nil {
+		h.logger.Error("Failed to list pending posts: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch posts"})
+		return
+	}
+	
+	// Combine posts (approved first, then pending)
+	// Simple merge: approved posts first, then pending
+	// In production, you'd want proper sorting by CreatedAt, but this works for MVP
+	result := approvedPosts
+	result = append(result, pendingPosts...)
+	
+	// Apply pagination
+	start := offset
+	end := offset + limit
+	if start > len(result) {
+		result = []*models.Post{}
+	} else {
+		if end > len(result) {
+			end = len(result)
+		}
+		result = result[start:end]
+	}
 
-	c.JSON(http.StatusOK, gin.H{"posts": posts, "count": len(posts)})
+	c.JSON(http.StatusOK, gin.H{"posts": result, "count": len(result)})
 }
 
 // UpdatePost godoc
