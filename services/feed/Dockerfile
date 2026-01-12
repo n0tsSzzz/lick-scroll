@@ -2,12 +2,17 @@ FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
+# Install swag for Swagger docs generation
+RUN go install github.com/swaggo/swag/cmd/swag@latest
+
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
 
 WORKDIR /app/services/feed
+# Generate Swagger docs
+RUN swag init -g main.go --output docs --parseDependency --parseInternal || true
 RUN CGO_ENABLED=0 GOOS=linux go build -o /app/feed-service .
 
 FROM alpine:latest
