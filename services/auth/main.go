@@ -42,6 +42,11 @@ func main() {
 		panic(err)
 	}
 
+	// Validate JWT_SECRET for services that use JWT
+	if cfg.JWTSecret == "your-secret-key-change-in-production" || cfg.JWTSecret == "" {
+		panic("JWT_SECRET must be set in environment variables")
+	}
+
 	log := logger.New()
 	db, err := database.NewPostgresDB(cfg)
 	if err != nil {

@@ -81,9 +81,8 @@ func Load() (*Config, error) {
 		AnalyticsServiceURL:    getEnv("ANALYTICS_SERVICE_URL", "http://localhost:8008"),
 	}
 
-	if config.JWTSecret == "your-secret-key-change-in-production" {
-		return nil, fmt.Errorf("JWT_SECRET must be set in environment variables")
-	}
+	// JWT_SECRET validation is optional - only required for services that use JWT
+	// If not set, it will use default value and services without JWT will work fine
 
 	return config, nil
 }
