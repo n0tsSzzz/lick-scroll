@@ -162,12 +162,20 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 	}
 	h.redisClient.Expire(ctx, postKey, 24*time.Hour)
 
-	// Call fanout service to add post to subscribers' feeds (async)
-	go func() {
-		// Wait a bit for moderation, only fanout if approved
-		// For now, we'll fanout immediately, moderation can remove later
-		// In production, fanout should be called after moderation approves
-	}()
+	// For MVP: Add post to creator's own feed automatically
+	// In production, this should happen after moderation approves
+	feedKey := fmt.Sprintf("feed:%s", post.CreatorID)
+	h.redisClient.LPush(ctx, feedKey, post.ID)
+	h.redisClient.LTrim(ctx, feedKey, 0, 999)
+	h.redisClient.Expire(ctx, feedKey, 7*24*time.Hour)
+
+	// Also add to category feed if category is specified
+	if post.Category != "" {
+		categoryFeedKey := fmt.Sprintf("feed:%s:%s", post.CreatorID, post.Category)
+		h.redisClient.LPush(ctx, categoryFeedKey, post.ID)
+		h.redisClient.LTrim(ctx, categoryFeedKey, 0, 999)
+		h.redisClient.Expire(ctx, categoryFeedKey, 7*24*time.Hour)
+	}
 
 	c.JSON(http.StatusCreated, post)
 }
