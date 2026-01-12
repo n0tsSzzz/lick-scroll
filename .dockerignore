@@ -65,8 +65,8 @@ Dockerfile
 scripts/
 *.sh
 
-# Swagger docs (generated, will be regenerated in build if needed)
-services/*/docs/
+# Swagger docs (will be regenerated in Dockerfile during build)
+# services/*/docs/ - commented out to allow docs generation in Docker
 
 # Temporary files
 tmp/
