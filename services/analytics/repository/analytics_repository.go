@@ -11,6 +11,7 @@ type AnalyticsRepository interface {
 	GetPostByID(postID string) (*models.Post, error)
 	GetPostPurchases(postID string) (int64, error)
 	GetCreatorRevenue(creatorID string) (int, error)
+	GetPostLikeCount(postID string) (int64, error)
 }
 
 type analyticsRepository struct {
@@ -58,5 +59,11 @@ func (r *analyticsRepository) GetCreatorRevenue(creatorID string) (int, error) {
 		return 0, err
 	}
 	return int(totalRevenue), nil
+}
+
+func (r *analyticsRepository) GetPostLikeCount(postID string) (int64, error) {
+	var count int64
+	err := r.db.Model(&models.Like{}).Where("post_id = ?", postID).Count(&count).Error
+	return count, err
 }
 

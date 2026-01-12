@@ -53,9 +53,14 @@ func (h *AnalyticsHandler) GetCreatorStats(c *gin.Context) {
 
 	totalViews := 0
 	totalPurchases := 0
+	totalLikes := int64(0)
 	for _, post := range posts {
 		totalViews += post.Views
 		totalPurchases += post.Purchases
+		likeCount, err := h.analyticsRepo.GetPostLikeCount(post.ID)
+		if err == nil {
+			totalLikes += likeCount
+		}
 	}
 
 	revenue, err := h.analyticsRepo.GetCreatorRevenue(userID)
@@ -68,6 +73,7 @@ func (h *AnalyticsHandler) GetCreatorStats(c *gin.Context) {
 		"total_posts":     len(posts),
 		"total_views":     totalViews,
 		"total_purchases": totalPurchases,
+		"total_likes":     totalLikes,
 		"total_revenue":   revenue,
 	})
 }
@@ -113,11 +119,18 @@ func (h *AnalyticsHandler) GetPostStats(c *gin.Context) {
 		purchases = 0
 	}
 
+	likes, err := h.analyticsRepo.GetPostLikeCount(postID)
+	if err != nil {
+		h.logger.Error("Failed to get likes: %v", err)
+		likes = 0
+	}
+
 	revenue := post.Price * int(purchases)
 
 	c.JSON(http.StatusOK, gin.H{
 		"post_id":   postID,
 		"views":     post.Views,
+		"likes":     likes,
 		"purchases": purchases,
 		"revenue":   revenue,
 	})
