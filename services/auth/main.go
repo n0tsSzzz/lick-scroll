@@ -1,6 +1,13 @@
 package main
 
 import (
+	"context"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
 	"lick-scroll/pkg/config"
 	"lick-scroll/pkg/database"
 	"lick-scroll/pkg/jwt"
@@ -119,10 +126,45 @@ func main() {
 		}
 	}
 
-	log.Info("Auth service starting on port %s", cfg.ServerPort)
-	if err := r.Run(":" + cfg.ServerPort); err != nil {
-		log.Error("Failed to start server: %v", err)
+	// Create HTTP server
+	srv := &http.Server{
+		Addr:    ":" + cfg.ServerPort,
+		Handler: r,
+	}
+
+	// Start server in a goroutine
+	go func() {
+		log.Info("Auth service starting on port %s", cfg.ServerPort)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Error("Failed to start server: %v", err)
+			panic(err)
+		}
+	}()
+
+	// Wait for interrupt signal to gracefully shutdown the server
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Info("Shutting down auth service...")
+
+	// The context is used to inform the server it has 5 seconds to finish
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Close database connection
+	sqlDB, err := db.DB()
+	if err == nil {
+		if err := sqlDB.Close(); err != nil {
+			log.Error("Error closing database: %v", err)
+		}
+	}
+
+	// Shutdown server
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Error("Server forced to shutdown: %v", err)
 		panic(err)
 	}
+
+	log.Info("Auth service exited")
 }
 
