@@ -2,14 +2,13 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
 
-	"lick-scroll/pkg/config"
 	"lick-scroll/pkg/logger"
 	"lick-scroll/pkg/models"
+	"lick-scroll/pkg/queue"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -19,13 +18,15 @@ import (
 type FanoutHandler struct {
 	db          *gorm.DB
 	redisClient *redis.Client
+	queueClient *queue.Client
 	logger      *logger.Logger
 }
 
-func NewFanoutHandler(db *gorm.DB, redisClient *redis.Client, logger *logger.Logger) *FanoutHandler {
+func NewFanoutHandler(db *gorm.DB, redisClient *redis.Client, queueClient *queue.Client, logger *logger.Logger) *FanoutHandler {
 	return &FanoutHandler{
 		db:          db,
 		redisClient: redisClient,
+		queueClient: queueClient,
 		logger:      logger,
 	}
 }
@@ -86,40 +87,35 @@ func (h *FanoutHandler) FanoutPost(c *gin.Context) {
 	}
 
 	// Send notifications to all subscribers (free subscriptions get notifications)
-	// Create notification tasks in priority queue
-	notificationTasks := make([]map[string]interface{}, 0)
+	// Create notification tasks and publish to RabbitMQ priority queue
+	notificationTasks := 0
 	for _, sub := range subscriptions {
 		// Free subscribers get notifications about new posts
 		if sub.Type == models.SubscriptionTypeFree {
 			task := map[string]interface{}{
-				"user_id":  sub.ViewerID,
-				"post_id":  req.PostID,
+				"user_id":    sub.ViewerID,
+				"post_id":    req.PostID,
 				"creator_id": req.CreatorID,
-				"type":     "new_post",
-				"priority": 1, // Normal priority
+				"type":       "new_post",
+				"priority":   1, // Normal priority
 			}
-			notificationTasks = append(notificationTasks, task)
+			if err := h.queueClient.PublishNotificationTask(task); err != nil {
+				h.logger.Error("Failed to publish notification task: %v", err)
+				// Continue processing other tasks even if one fails
+			} else {
+				notificationTasks++
+			}
 		}
 	}
 
-	// Add tasks to notification queue
-	if len(notificationTasks) > 0 {
-		for _, task := range notificationTasks {
-			taskJSON, _ := json.Marshal(task)
-			// Add to priority queue (higher priority = lower number)
-			priority := task["priority"].(int)
-			h.redisClient.ZAdd(ctx, "notification_queue", redis.Z{
-				Score:  float64(priority),
-				Member: string(taskJSON),
-			})
-		}
-		h.logger.Info("Added %d notification tasks to queue", len(notificationTasks))
+	if notificationTasks > 0 {
+		h.logger.Info("Published %d notification tasks to RabbitMQ queue", notificationTasks)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":      "Post fanned out successfully",
-		"subscribers": len(subscriptions),
-		"notifications_sent": len(notificationTasks),
+		"message":            "Post fanned out successfully",
+		"subscribers":        len(subscriptions),
+		"notifications_sent": notificationTasks,
 	})
 }
 
