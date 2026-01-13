@@ -123,12 +123,19 @@ services:
     container_name: lick-scroll-feed
     environment:
       SERVER_PORT: "8003"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: lickscroll
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       JWT_SECRET: ${JWT_SECRET:-change-this-secret-key-in-production}
     ports:
       - "8003:8003"
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
 
