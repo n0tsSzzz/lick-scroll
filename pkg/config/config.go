@@ -24,6 +24,12 @@ type Config struct {
 	RedisPassword string
 	RedisDB       int
 
+	// RabbitMQ
+	RabbitMQHost     string
+	RabbitMQPort     string
+	RabbitMQUser     string
+	RabbitMQPassword string
+
 	// JWT
 	JWTSecret string
 
@@ -64,6 +70,11 @@ func Load() (*Config, error) {
 		RedisPort:     getEnv("REDIS_PORT", "6379"),
 		RedisPassword: getEnv("REDIS_PASSWORD", ""),
 		RedisDB:       0,
+
+		RabbitMQHost:     getEnv("RABBITMQ_HOST", "localhost"),
+		RabbitMQPort:     getEnv("RABBITMQ_PORT", "5672"),
+		RabbitMQUser:     getEnv("RABBITMQ_USER", "guest"),
+		RabbitMQPassword: getEnv("RABBITMQ_PASSWORD", "guest"),
 
 		JWTSecret: getEnv("JWT_SECRET", "your-secret-key-change-in-production"),
 
