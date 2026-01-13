@@ -188,6 +188,7 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 // @Router       /posts/{id} [get]
 func (h *PostHandler) GetPost(c *gin.Context) {
 	postID := c.Param("id")
+	userID := c.GetString("user_id")
 
 	// Try to get from cache first
 	ctx := context.Background()
@@ -203,10 +204,37 @@ func (h *PostHandler) GetPost(c *gin.Context) {
 		return
 	}
 
+	// Check if user has access to media
+	hasAccess := false
+	if post.Price == 0 {
+		// Free post - everyone has access
+		hasAccess = true
+	} else {
+		// Paid post - check if purchased or has paid subscription
+		// Check if purchased
+		purchaseKey := fmt.Sprintf("purchase:%s:%s", userID, postID)
+		purchased, _ := h.redisClient.Exists(ctx, purchaseKey).Result()
+		if purchased > 0 {
+			hasAccess = true
+		} else {
+			// Check if has paid subscription to creator
+			subscription, err := h.postRepo.GetSubscription(userID, post.CreatorID)
+			if err == nil && subscription.Type == models.SubscriptionTypePaid {
+				hasAccess = true
+			}
+		}
+	}
+
+	// If no access, hide media URL
+	responsePost := *post
+	if !hasAccess && post.Price > 0 {
+		responsePost.MediaURL = "" // Hide media if not purchased/subscribed
+	}
+
 	// Increment views
 	go h.postRepo.IncrementViews(postID)
 
-	c.JSON(http.StatusOK, post)
+	c.JSON(http.StatusOK, responsePost)
 }
 
 // ListPosts godoc

@@ -7,6 +7,8 @@ import (
 	"strconv"
 
 	"lick-scroll/pkg/logger"
+	"lick-scroll/pkg/models"
+	"lick-scroll/services/post/repository"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -15,12 +17,14 @@ import (
 type FeedHandler struct {
 	redisClient *redis.Client
 	logger      *logger.Logger
+	postRepo    repository.PostRepository
 }
 
-func NewFeedHandler(redisClient *redis.Client, logger *logger.Logger) *FeedHandler {
+func NewFeedHandler(redisClient *redis.Client, logger *logger.Logger, postRepo repository.PostRepository) *FeedHandler {
 	return &FeedHandler{
 		redisClient: redisClient,
 		logger:      logger,
+		postRepo:    postRepo,
 	}
 }
 
@@ -36,6 +40,7 @@ func NewFeedHandler(redisClient *redis.Client, logger *logger.Logger) *FeedHandl
 // @Success      200  {object}  map[string]interface{}
 // @Router       /feed [get]
 func (h *FeedHandler) GetFeed(c *gin.Context) {
+	userID := c.GetString("user_id")
 	limit := 20
 	offset := 0
 
@@ -75,14 +80,43 @@ func (h *FeedHandler) GetFeed(c *gin.Context) {
 		postKey := fmt.Sprintf("post:%s", postID)
 		postData, err := h.redisClient.HGetAll(ctx, postKey).Result()
 		if err == nil && len(postData) > 0 {
-			posts = append(posts, map[string]interface{}{
+			price, _ := strconv.Atoi(postData["price"])
+			hasAccess := false
+			
+			// Check access to media
+			if price == 0 {
+				hasAccess = true
+			} else {
+				// Check if purchased
+				purchaseKey := fmt.Sprintf("purchase:%s:%s", userID, postID)
+				purchased, _ := h.redisClient.Exists(ctx, purchaseKey).Result()
+				if purchased > 0 {
+					hasAccess = true
+				} else {
+					// Check if has paid subscription
+					subscription, err := h.postRepo.GetSubscription(userID, postData["creator_id"])
+					if err == nil && subscription.Type == models.SubscriptionTypePaid {
+						hasAccess = true
+					}
+				}
+			}
+
+			postItem := map[string]interface{}{
 				"id":         postData["id"],
 				"title":      postData["title"],
-				"media_url":  postData["media_url"],
 				"creator_id": postData["creator_id"],
 				"price":      postData["price"],
 				"category":   postData["category"],
-			})
+			}
+			
+			// Only include media_url if user has access
+			if hasAccess {
+				postItem["media_url"] = postData["media_url"]
+			} else {
+				postItem["media_url"] = "" // Hide media
+			}
+			
+			posts = append(posts, postItem)
 		}
 	}
 
@@ -136,14 +170,43 @@ func (h *FeedHandler) GetFeedByCategory(c *gin.Context) {
 		postKey := fmt.Sprintf("post:%s", postID)
 		postData, err := h.redisClient.HGetAll(ctx, postKey).Result()
 		if err == nil && len(postData) > 0 {
-			posts = append(posts, map[string]interface{}{
+			price, _ := strconv.Atoi(postData["price"])
+			hasAccess := false
+			
+			// Check access to media
+			if price == 0 {
+				hasAccess = true
+			} else {
+				// Check if purchased
+				purchaseKey := fmt.Sprintf("purchase:%s:%s", userID, postID)
+				purchased, _ := h.redisClient.Exists(ctx, purchaseKey).Result()
+				if purchased > 0 {
+					hasAccess = true
+				} else {
+					// Check if has paid subscription
+					subscription, err := h.postRepo.GetSubscription(userID, postData["creator_id"])
+					if err == nil && subscription.Type == models.SubscriptionTypePaid {
+						hasAccess = true
+					}
+				}
+			}
+
+			postItem := map[string]interface{}{
 				"id":         postData["id"],
 				"title":      postData["title"],
-				"media_url":  postData["media_url"],
 				"creator_id": postData["creator_id"],
 				"price":      postData["price"],
 				"category":   postData["category"],
-			})
+			}
+			
+			// Only include media_url if user has access
+			if hasAccess {
+				postItem["media_url"] = postData["media_url"]
+			} else {
+				postItem["media_url"] = "" // Hide media
+			}
+			
+			posts = append(posts, postItem)
 		}
 	}
 

@@ -2,10 +2,12 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
 
+	"lick-scroll/pkg/config"
 	"lick-scroll/pkg/logger"
 	"lick-scroll/pkg/models"
 
@@ -83,14 +85,50 @@ func (h *FanoutHandler) FanoutPost(c *gin.Context) {
 		h.redisClient.Expire(ctx, postKey, 24*time.Hour)
 	}
 
+	// Send notifications to all subscribers (free subscriptions get notifications)
+	// Create notification tasks in priority queue
+	notificationTasks := make([]map[string]interface{}, 0)
+	for _, sub := range subscriptions {
+		// Free subscribers get notifications about new posts
+		if sub.Type == models.SubscriptionTypeFree {
+			task := map[string]interface{}{
+				"user_id":  sub.ViewerID,
+				"post_id":  req.PostID,
+				"creator_id": req.CreatorID,
+				"type":     "new_post",
+				"priority": 1, // Normal priority
+			}
+			notificationTasks = append(notificationTasks, task)
+		}
+	}
+
+	// Add tasks to notification queue
+	if len(notificationTasks) > 0 {
+		for _, task := range notificationTasks {
+			taskJSON, _ := json.Marshal(task)
+			// Add to priority queue (higher priority = lower number)
+			priority := task["priority"].(int)
+			h.redisClient.ZAdd(ctx, "notification_queue", redis.Z{
+				Score:  float64(priority),
+				Member: string(taskJSON),
+			})
+		}
+		h.logger.Info("Added %d notification tasks to queue", len(notificationTasks))
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"message":      "Post fanned out successfully",
 		"subscribers": len(subscriptions),
+		"notifications_sent": len(notificationTasks),
 	})
 }
 
+type SubscribeRequest struct {
+	Type string `json:"type" binding:"omitempty,oneof=free paid"` // Default: free
+}
+
 func (h *FanoutHandler) Subscribe(c *gin.Context) {
-	viewerID := c.GetHeader("X-User-ID")
+	viewerID := c.GetString("user_id")
 	creatorID := c.Param("creator_id")
 
 	if viewerID == "" {
@@ -98,9 +136,28 @@ func (h *FanoutHandler) Subscribe(c *gin.Context) {
 		return
 	}
 
+	var req SubscribeRequest
+	if err := c.ShouldBindJSON(&req); err != nil && err.Error() != "EOF" {
+		// If no body, default to free
+		req.Type = "free"
+	} else if req.Type == "" {
+		req.Type = "free"
+	}
+
 	// Check if already subscribed
 	var existing models.Subscription
 	if err := h.db.Where("viewer_id = ? AND creator_id = ?", viewerID, creatorID).First(&existing).Error; err == nil {
+		// Update subscription type if different
+		if existing.Type != models.SubscriptionType(req.Type) {
+			existing.Type = models.SubscriptionType(req.Type)
+			if err := h.db.Save(&existing).Error; err != nil {
+				h.logger.Error("Failed to update subscription: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update subscription"})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"message": "Subscription updated", "type": req.Type})
+			return
+		}
 		c.JSON(http.StatusConflict, gin.H{"error": "Already subscribed"})
 		return
 	}
@@ -108,6 +165,7 @@ func (h *FanoutHandler) Subscribe(c *gin.Context) {
 	subscription := &models.Subscription{
 		ViewerID:  viewerID,
 		CreatorID: creatorID,
+		Type:      models.SubscriptionType(req.Type),
 	}
 
 	if err := h.db.Create(subscription).Error; err != nil {
@@ -116,11 +174,11 @@ func (h *FanoutHandler) Subscribe(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "Subscribed successfully"})
+	c.JSON(http.StatusCreated, gin.H{"message": "Subscribed successfully", "type": req.Type})
 }
 
 func (h *FanoutHandler) Unsubscribe(c *gin.Context) {
-	viewerID := c.GetHeader("X-User-ID")
+	viewerID := c.GetString("user_id")
 	creatorID := c.Param("creator_id")
 
 	if viewerID == "" {

@@ -5,10 +5,12 @@ import (
 
 	"lick-scroll/pkg/cache"
 	"lick-scroll/pkg/config"
+	"lick-scroll/pkg/database"
 	"lick-scroll/pkg/jwt"
 	"lick-scroll/pkg/logger"
 	"lick-scroll/pkg/middleware"
 	"lick-scroll/services/feed/handlers"
+	"lick-scroll/services/post/repository"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -39,6 +41,12 @@ func main() {
 	}
 
 	log := logger.New()
+	db, err := database.NewPostgresDB(cfg)
+	if err != nil {
+		log.Error("Failed to connect to database: %v", err)
+		panic(err)
+	}
+
 	redisClient, err := cache.NewRedisClient(cfg)
 	if err != nil {
 		log.Error("Failed to connect to redis: %v", err)
@@ -46,7 +54,8 @@ func main() {
 	}
 
 	jwtService := jwt.NewService(cfg.JWTSecret)
-	feedHandler := handlers.NewFeedHandler(redisClient, log)
+	postRepo := repository.NewPostRepository(db)
+	feedHandler := handlers.NewFeedHandler(redisClient, log, postRepo)
 
 	r := gin.Default()
 

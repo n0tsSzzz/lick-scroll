@@ -22,6 +22,8 @@ type PostRepository interface {
 	IsLiked(userID, postID string) (bool, error)
 	GetLikedPosts(userID string, limit, offset int) ([]*models.Post, error)
 	GetLikeCount(postID string) (int64, error)
+	// Subscription methods
+	GetSubscription(userID, creatorID string) (*models.Subscription, error)
 }
 
 type postRepository struct {
@@ -127,5 +129,14 @@ func (r *postRepository) GetLikeCount(postID string) (int64, error) {
 	var count int64
 	err := r.db.Model(&models.Like{}).Where("post_id = ?", postID).Count(&count).Error
 	return count, err
+}
+
+func (r *postRepository) GetSubscription(userID, creatorID string) (*models.Subscription, error) {
+	var subscription models.Subscription
+	err := r.db.Where("viewer_id = ? AND creator_id = ?", userID, creatorID).First(&subscription).Error
+	if err != nil {
+		return nil, err
+	}
+	return &subscription, nil
 }
 

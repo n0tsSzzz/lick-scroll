@@ -1,10 +1,14 @@
 package main
 
 import (
+	"time"
+
 	"lick-scroll/pkg/cache"
 	"lick-scroll/pkg/config"
 	"lick-scroll/pkg/database"
+	"lick-scroll/pkg/jwt"
 	"lick-scroll/pkg/logger"
+	"lick-scroll/pkg/middleware"
 	"lick-scroll/pkg/models"
 	"lick-scroll/services/fanout/handlers"
 
@@ -36,7 +40,8 @@ func main() {
 		panic(err)
 	}
 
-	fanoutHandler := handlers.NewFanoutHandler(db, redisClient, log)
+	fanoutHandler := handlers.NewFanoutHandler(db, redisClient, log, cfg)
+	jwtService := jwt.NewService(cfg.JWTSecret)
 
 	r := gin.Default()
 
@@ -46,6 +51,8 @@ func main() {
 	})
 
 	api := r.Group("/api/v1")
+	api.Use(middleware.AuthMiddleware(jwtService))
+	api.Use(middleware.RateLimitMiddleware(redisClient, 100, time.Minute))
 	{
 		api.POST("/fanout/post/:post_id", fanoutHandler.FanoutPost)
 		api.POST("/subscribe/:creator_id", fanoutHandler.Subscribe)

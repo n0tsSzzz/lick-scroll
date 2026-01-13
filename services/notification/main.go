@@ -35,6 +35,7 @@ func main() {
 	{
 		api.POST("/notifications/send", notificationHandler.SendNotification)
 		api.POST("/notifications/broadcast", notificationHandler.BroadcastNotification)
+		api.POST("/notifications/process-queue", notificationHandler.ProcessNotificationQueue)
 	}
 
 	log.Info("Notification service starting on port %s", cfg.ServerPort)
