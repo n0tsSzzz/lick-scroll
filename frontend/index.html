@@ -394,6 +394,9 @@
         }
 
         function getHeaders() {
+            if (!authToken) {
+                throw new Error('No authentication token. Please login first.');
+            }
             return {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${authToken}`
@@ -729,6 +732,11 @@
                 return;
             }
 
+            if (!authToken) {
+                showResult('subscriptionResult', { error: 'Please login first' }, true);
+                return;
+            }
+
             try {
                 const response = await fetch(`${API_BASE.fanout}/subscribe/${creatorId}`, {
                     method: 'POST',
@@ -737,7 +745,13 @@
                 });
 
                 const result = await response.json();
-                showResult('subscriptionResult', result, !response.ok);
+                if (!response.ok && response.status === 401) {
+                    // Token expired or invalid - clear and ask to login again
+                    logout();
+                    showResult('subscriptionResult', { error: 'Session expired. Please login again.' }, true);
+                } else {
+                    showResult('subscriptionResult', result, !response.ok);
+                }
             } catch (error) {
                 showResult('subscriptionResult', { error: error.message }, true);
             }
@@ -751,6 +765,11 @@
                 return;
             }
 
+            if (!authToken) {
+                showResult('subscriptionResult', { error: 'Please login first' }, true);
+                return;
+            }
+
             try {
                 const response = await fetch(`${API_BASE.fanout}/subscribe/${creatorId}`, {
                     method: 'DELETE',
@@ -758,7 +777,12 @@
                 });
 
                 const result = await response.json();
-                showResult('subscriptionResult', result, !response.ok);
+                if (!response.ok && response.status === 401) {
+                    logout();
+                    showResult('subscriptionResult', { error: 'Session expired. Please login again.' }, true);
+                } else {
+                    showResult('subscriptionResult', result, !response.ok);
+                }
             } catch (error) {
                 showResult('subscriptionResult', { error: error.message }, true);
             }
@@ -772,14 +796,23 @@
                 return;
             }
 
+            if (!authToken) {
+                showResult('subscriptionResult', { error: 'Please login first' }, true);
+                return;
+            }
+
             try {
-                // Note: This endpoint might not exist yet, but we'll try GET /subscribe/:creator_id
                 const response = await fetch(`${API_BASE.fanout}/subscribe/${creatorId}`, {
                     headers: getHeaders()
                 });
 
                 const result = await response.json();
-                showResult('subscriptionResult', result, !response.ok);
+                if (!response.ok && response.status === 401) {
+                    logout();
+                    showResult('subscriptionResult', { error: 'Session expired. Please login again.' }, true);
+                } else {
+                    showResult('subscriptionResult', result, !response.ok);
+                }
             } catch (error) {
                 showResult('subscriptionResult', { error: error.message }, true);
             }
