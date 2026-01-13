@@ -136,6 +136,7 @@ func (h *FeedHandler) GetFeed(c *gin.Context) {
 // @Success      200  {object}  map[string]interface{}
 // @Router       /feed/category/{category} [get]
 func (h *FeedHandler) GetFeedByCategory(c *gin.Context) {
+	userID := c.GetString("user_id") // Get user ID from context
 	category := c.Param("category")
 	limit := 20
 	offset := 0
