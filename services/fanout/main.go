@@ -68,6 +68,7 @@ func main() {
 	{
 		api.POST("/fanout/post/:post_id", fanoutHandler.FanoutPost)
 		api.POST("/subscribe/:creator_id", fanoutHandler.Subscribe)
+		api.GET("/subscribe/:creator_id", fanoutHandler.GetSubscriptionStatus)
 		api.DELETE("/subscribe/:creator_id", fanoutHandler.Unsubscribe)
 	}
 

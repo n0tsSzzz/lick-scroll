@@ -167,7 +167,6 @@
             <div class="user-info" id="userInfo" style="display: none;">
                 <p><strong>Email:</strong> <span id="userEmail"></span></p>
                 <p><strong>Username:</strong> <span id="userUsername"></span></p>
-                <p><strong>Role:</strong> <span id="userRole"></span></p>
                 <div class="token-display">
                     <strong>Token:</strong> <span id="userToken"></span>
                 </div>
@@ -324,6 +323,54 @@
             <button onclick="getPostStats()">Статистика поста</button>
             <div id="analyticsResult" class="result" style="display: none;"></div>
         </div>
+
+        <!-- Subscription Section -->
+        <div class="section" id="subscriptionSection" style="display: none;">
+            <h2>🤝 Подписки</h2>
+            <div class="grid">
+                <div>
+                    <h3>Подписаться на креатора</h3>
+                    <div class="form-group">
+                        <label>Creator ID:</label>
+                        <input type="text" id="subscribeCreatorId" placeholder="creator-id">
+                    </div>
+                    <div class="form-group">
+                        <label>Тип подписки:</label>
+                        <select id="subscribeType">
+                            <option value="free">Бесплатная (уведомления)</option>
+                            <option value="paid">Платная (бесплатные посты)</option>
+                        </select>
+                    </div>
+                    <button onclick="subscribe()">Подписаться</button>
+                </div>
+                <div>
+                    <h3>Отписаться от креатора</h3>
+                    <div class="form-group">
+                        <label>Creator ID:</label>
+                        <input type="text" id="unsubscribeCreatorId" placeholder="creator-id">
+                    </div>
+                    <button onclick="unsubscribe()">Отписаться</button>
+                </div>
+                <div>
+                    <h3>Статус подписки</h3>
+                    <div class="form-group">
+                        <label>Creator ID:</label>
+                        <input type="text" id="subscriptionStatusCreatorId" placeholder="creator-id">
+                    </div>
+                    <button onclick="getSubscriptionStatus()">Проверить статус</button>
+                </div>
+            </div>
+            <div id="subscriptionResult" class="result" style="display: none;"></div>
+        </div>
+
+        <!-- Notifications Section -->
+        <div class="section" id="notificationSection" style="display: none;">
+            <h2>🔔 Уведомления</h2>
+            <div class="btn-group">
+                <button onclick="processNotificationQueue()">Обработать очередь уведомлений</button>
+            </div>
+            <div id="notificationResult" class="result" style="display: none;"></div>
+        </div>
     </div>
 
     <script>
@@ -331,7 +378,9 @@
             auth: 'http://localhost:8001/api/v1',
             post: 'http://localhost:8002/api/v1',
             feed: 'http://localhost:8003/api/v1',
+            fanout: 'http://localhost:8004/api/v1',
             wallet: 'http://localhost:8005/api/v1',
+            notification: 'http://localhost:8006/api/v1',
             analytics: 'http://localhost:8008/api/v1'
         };
 
@@ -432,7 +481,6 @@
             if (!currentUser) return;
             document.getElementById('userEmail').textContent = currentUser.email;
             document.getElementById('userUsername').textContent = currentUser.username;
-            document.getElementById('userRole').textContent = currentUser.role;
             document.getElementById('userToken').textContent = authToken;
             document.getElementById('userInfo').style.display = 'block';
             document.getElementById('authForms').style.display = 'none';
@@ -443,6 +491,8 @@
             document.getElementById('feedSection').style.display = 'block';
             document.getElementById('walletSection').style.display = 'block';
             document.getElementById('analyticsSection').style.display = 'block';
+            document.getElementById('subscriptionSection').style.display = 'block';
+            document.getElementById('notificationSection').style.display = 'block';
         }
 
         function hideSections() {
@@ -450,6 +500,8 @@
             document.getElementById('feedSection').style.display = 'none';
             document.getElementById('walletSection').style.display = 'none';
             document.getElementById('analyticsSection').style.display = 'none';
+            document.getElementById('subscriptionSection').style.display = 'none';
+            document.getElementById('notificationSection').style.display = 'none';
         }
 
         // Post Functions
@@ -664,6 +716,87 @@
                 showResult('analyticsResult', result, !response.ok);
             } catch (error) {
                 showResult('analyticsResult', { error: error.message }, true);
+            }
+        }
+
+        // Subscription Functions
+        async function subscribe() {
+            const creatorId = document.getElementById('subscribeCreatorId').value;
+            const type = document.getElementById('subscribeType').value;
+            
+            if (!creatorId) {
+                showResult('subscriptionResult', { error: 'Creator ID is required' }, true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE.fanout}/subscribe/${creatorId}`, {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({ type })
+                });
+
+                const result = await response.json();
+                showResult('subscriptionResult', result, !response.ok);
+            } catch (error) {
+                showResult('subscriptionResult', { error: error.message }, true);
+            }
+        }
+
+        async function unsubscribe() {
+            const creatorId = document.getElementById('unsubscribeCreatorId').value;
+            
+            if (!creatorId) {
+                showResult('subscriptionResult', { error: 'Creator ID is required' }, true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE.fanout}/subscribe/${creatorId}`, {
+                    method: 'DELETE',
+                    headers: getHeaders()
+                });
+
+                const result = await response.json();
+                showResult('subscriptionResult', result, !response.ok);
+            } catch (error) {
+                showResult('subscriptionResult', { error: error.message }, true);
+            }
+        }
+
+        async function getSubscriptionStatus() {
+            const creatorId = document.getElementById('subscriptionStatusCreatorId').value;
+            
+            if (!creatorId) {
+                showResult('subscriptionResult', { error: 'Creator ID is required' }, true);
+                return;
+            }
+
+            try {
+                // Note: This endpoint might not exist yet, but we'll try GET /subscribe/:creator_id
+                const response = await fetch(`${API_BASE.fanout}/subscribe/${creatorId}`, {
+                    headers: getHeaders()
+                });
+
+                const result = await response.json();
+                showResult('subscriptionResult', result, !response.ok);
+            } catch (error) {
+                showResult('subscriptionResult', { error: error.message }, true);
+            }
+        }
+
+        // Notification Functions
+        async function processNotificationQueue() {
+            try {
+                const response = await fetch(`${API_BASE.notification}/notifications/process-queue`, {
+                    method: 'POST',
+                    headers: getHeaders()
+                });
+
+                const result = await response.json();
+                showResult('notificationResult', result, !response.ok);
+            } catch (error) {
+                showResult('notificationResult', { error: error.message }, true);
             }
         }
     </script>

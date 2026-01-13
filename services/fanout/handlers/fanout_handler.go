@@ -191,3 +191,39 @@ func (h *FanoutHandler) Unsubscribe(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Unsubscribed successfully"})
 }
 
+// GetSubscriptionStatus godoc
+// @Summary      Get subscription status
+// @Description  Get the subscription status for a specific creator by the authenticated user.
+// @Tags         subscriptions
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        creator_id path string true "Creator ID"
+// @Success      200  {object}  map[string]interface{}
+// @Failure      400  {object}  map[string]string
+// @Router       /subscribe/{creator_id} [get]
+func (h *FanoutHandler) GetSubscriptionStatus(c *gin.Context) {
+	viewerID := c.GetString("user_id")
+	creatorID := c.Param("creator_id")
+
+	if viewerID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID required"})
+		return
+	}
+
+	var subscription models.Subscription
+	err := h.db.Where("viewer_id = ? AND creator_id = ?", viewerID, creatorID).First(&subscription).Error
+
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusOK, gin.H{"subscribed": false, "type": ""})
+			return
+		}
+		h.logger.Error("Failed to get subscription status: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get subscription status"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"subscribed": true, "type": subscription.Type})
+}
+
