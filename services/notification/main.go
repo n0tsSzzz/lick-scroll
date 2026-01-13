@@ -1,9 +1,17 @@
 package main
 
 import (
+	"context"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
 	"lick-scroll/pkg/cache"
 	"lick-scroll/pkg/config"
 	"lick-scroll/pkg/logger"
+	"lick-scroll/pkg/queue"
 	"lick-scroll/services/notification/handlers"
 
 	"github.com/gin-gonic/gin"
@@ -22,7 +30,13 @@ func main() {
 		panic(err)
 	}
 
-	notificationHandler := handlers.NewNotificationHandler(redisClient, log)
+	queueClient, err := queue.NewRabbitMQClient(cfg, log)
+	if err != nil {
+		log.Error("Failed to connect to RabbitMQ: %v", err)
+		panic(err)
+	}
+
+	notificationHandler := handlers.NewNotificationHandler(redisClient, queueClient, log)
 
 	r := gin.Default()
 
@@ -38,10 +52,47 @@ func main() {
 		api.POST("/notifications/process-queue", notificationHandler.ProcessNotificationQueue)
 	}
 
-	log.Info("Notification service starting on port %s", cfg.ServerPort)
-	if err := r.Run(":" + cfg.ServerPort); err != nil {
-		log.Error("Failed to start server: %v", err)
+	// Create HTTP server
+	srv := &http.Server{
+		Addr:    ":" + cfg.ServerPort,
+		Handler: r,
+	}
+
+	// Start server in a goroutine
+	go func() {
+		log.Info("Notification service starting on port %s", cfg.ServerPort)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Error("Failed to start server: %v", err)
+			panic(err)
+		}
+	}()
+
+	// Wait for interrupt signal to gracefully shutdown the server
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Info("Shutting down notification service...")
+
+	// The context is used to inform the server it has 5 seconds to finish
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Close Redis connection
+	if err := redisClient.Close(); err != nil {
+		log.Error("Error closing Redis: %v", err)
+	}
+
+	// Close RabbitMQ connection
+	if err := queueClient.Close(); err != nil {
+		log.Error("Error closing RabbitMQ: %v", err)
+	}
+
+	// Shutdown server
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Error("Server forced to shutdown: %v", err)
 		panic(err)
 	}
+
+	log.Info("Notification service exited")
 }
 

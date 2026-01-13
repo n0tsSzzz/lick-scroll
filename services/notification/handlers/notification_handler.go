@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"lick-scroll/pkg/logger"
+	"lick-scroll/pkg/queue"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -15,12 +16,14 @@ import (
 
 type NotificationHandler struct {
 	redisClient *redis.Client
+	queueClient *queue.Client
 	logger      *logger.Logger
 }
 
-func NewNotificationHandler(redisClient *redis.Client, logger *logger.Logger) *NotificationHandler {
+func NewNotificationHandler(redisClient *redis.Client, queueClient *queue.Client, logger *logger.Logger) *NotificationHandler {
 	return &NotificationHandler{
 		redisClient: redisClient,
+		queueClient: queueClient,
 		logger:      logger,
 	}
 }
@@ -125,70 +128,55 @@ func (h *NotificationHandler) BroadcastNotification(c *gin.Context) {
 	})
 }
 
-// ProcessNotificationQueue processes notifications from priority queue
+// ProcessNotificationQueue starts consuming notifications from RabbitMQ queue
+// This endpoint starts a background consumer that processes notifications
 func (h *NotificationHandler) ProcessNotificationQueue(c *gin.Context) {
 	ctx := context.Background()
-	
-	// Get highest priority task (lowest score = highest priority)
-	result, err := h.redisClient.ZRangeWithScores(ctx, "notification_queue", 0, 0).Result()
-	if err != nil && err != redis.Nil {
-		h.logger.Error("Failed to get notification from queue: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process queue"})
+
+	// Start consuming from RabbitMQ queue
+	err := h.queueClient.ConsumeNotificationTasks(func(task map[string]interface{}) error {
+		userID, _ := task["user_id"].(string)
+		postID, _ := task["post_id"].(string)
+		creatorID, _ := task["creator_id"].(string)
+
+		// Create notification
+		notification := Notification{
+			UserID:  userID,
+			Title:   "New Post Alert!",
+			Message: fmt.Sprintf("Creator %s just posted new content!", creatorID),
+			Type:    "new_post",
+			Data: map[string]interface{}{
+				"post_id":    postID,
+				"creator_id": creatorID,
+			},
+		}
+
+		// Send notification (store in Redis and publish via pub/sub)
+		notificationJSON, _ := json.Marshal(notification)
+		userNotificationsKey := fmt.Sprintf("notifications:%s", userID)
+		h.redisClient.LPush(ctx, userNotificationsKey, notificationJSON)
+		h.redisClient.LTrim(ctx, userNotificationsKey, 0, 99)
+		h.redisClient.Expire(ctx, userNotificationsKey, 30*24*time.Hour)
+
+		// Publish to Redis pub/sub for real-time notifications
+		h.redisClient.Publish(ctx, fmt.Sprintf("notifications:%s", userID), notificationJSON)
+
+		h.logger.Info("Processed notification for user %s: post %s", userID, postID)
+		return nil
+	})
+
+	if err != nil {
+		h.logger.Error("Failed to start consuming from queue: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start queue consumer"})
 		return
 	}
 
-	if len(result) == 0 {
-		c.JSON(http.StatusOK, gin.H{"message": "No notifications in queue"})
-		return
-	}
-
-	// Get first task
-	taskJSON := result[0].Member.(string)
-	
-	// Parse task
-	var task map[string]interface{}
-	if err := json.Unmarshal([]byte(taskJSON), &task); err != nil {
-		h.logger.Error("Failed to parse notification task: %v", err)
-		// Remove invalid task
-		h.redisClient.ZRem(ctx, "notification_queue", taskJSON)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid task format"})
-		return
-	}
-
-	userID, _ := task["user_id"].(string)
-	postID, _ := task["post_id"].(string)
-	creatorID, _ := task["creator_id"].(string)
-
-	// Create notification
-	notification := Notification{
-		UserID:  userID,
-		Title:   "New Post",
-		Message: fmt.Sprintf("New post from creator you follow"),
-		Type:    "new_post",
-		Data: map[string]interface{}{
-			"post_id":    postID,
-			"creator_id": creatorID,
-		},
-	}
-
-	// Send notification
-	notificationJSON, _ := json.Marshal(notification)
-	userNotificationsKey := fmt.Sprintf("notifications:%s", userID)
-	h.redisClient.LPush(ctx, userNotificationsKey, notificationJSON)
-	h.redisClient.LTrim(ctx, userNotificationsKey, 0, 99)
-	h.redisClient.Expire(ctx, userNotificationsKey, 30*24*time.Hour)
-
-	// Publish to Redis pub/sub
-	h.redisClient.Publish(ctx, fmt.Sprintf("notifications:%s", userID), notificationJSON)
-
-	// Remove task from queue
-	h.redisClient.ZRem(ctx, "notification_queue", taskJSON)
-
-	h.logger.Info("Processed notification for user %s: post %s", userID, postID)
+	// Get queue length
+	queueLength, _ := h.queueClient.GetQueueLength()
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Notification processed successfully",
-		"task":    task,
+		"message":      "Notification queue consumer started",
+		"queue_length": queueLength,
 	})
 }
 
