@@ -223,7 +223,7 @@
                     </div>
                     <div class="form-group">
                         <label>Type:</label>
-                        <select id="postType">
+                        <select id="postType" onchange="toggleImageUpload()">
                             <option value="photo">Photo</option>
                             <option value="video">Video</option>
                         </select>
@@ -232,9 +232,14 @@
                         <label>Category:</label>
                         <input type="text" id="postCategory" placeholder="fetish, cosplay, etc.">
                     </div>
-                    <div class="form-group">
-                        <label>Media File:</label>
+                    <div class="form-group" id="postMediaGroup">
+                        <label>Media File (для видео - один файл):</label>
                         <input type="file" id="postMedia" accept="image/*,video/*">
+                    </div>
+                    <div class="form-group" id="postImagesGroup" style="display: none;">
+                        <label>Изображения (можно выбрать несколько):</label>
+                        <input type="file" id="postImages" accept="image/*" multiple>
+                        <small>Для фото-постов можно загрузить несколько изображений</small>
                     </div>
                     <button onclick="createPost()">Создать пост</button>
                 </div>
@@ -506,6 +511,20 @@
         }
 
         // Post Functions
+        function toggleImageUpload() {
+            const postType = document.getElementById('postType').value;
+            const mediaGroup = document.getElementById('postMediaGroup');
+            const imagesGroup = document.getElementById('postImagesGroup');
+            
+            if (postType === 'photo') {
+                mediaGroup.style.display = 'none';
+                imagesGroup.style.display = 'block';
+            } else {
+                mediaGroup.style.display = 'block';
+                imagesGroup.style.display = 'none';
+            }
+        }
+
         async function createPost() {
             const formData = new FormData();
             formData.append('title', document.getElementById('postTitle').value);
@@ -513,9 +532,28 @@
             formData.append('type', document.getElementById('postType').value);
             formData.append('category', document.getElementById('postCategory').value);
             
-            const fileInput = document.getElementById('postMedia');
-            if (fileInput.files.length > 0) {
-                formData.append('media', fileInput.files[0]);
+            const postType = document.getElementById('postType').value;
+            
+            if (postType === 'photo') {
+                // For photo posts, use images[] array
+                const imagesInput = document.getElementById('postImages');
+                if (imagesInput.files.length > 0) {
+                    for (let i = 0; i < imagesInput.files.length; i++) {
+                        formData.append('images[]', imagesInput.files[i]);
+                    }
+                } else {
+                    showResult('postResult', { error: 'Please select at least one image' }, true);
+                    return;
+                }
+            } else {
+                // For video posts, use single media file
+                const fileInput = document.getElementById('postMedia');
+                if (fileInput.files.length > 0) {
+                    formData.append('media', fileInput.files[0]);
+                } else {
+                    showResult('postResult', { error: 'Please select a video file' }, true);
+                    return;
+                }
             }
 
             try {

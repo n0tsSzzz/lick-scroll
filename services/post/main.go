@@ -66,7 +66,7 @@ func main() {
 	}
 
 	// Auto migrate
-	if err := db.AutoMigrate(&models.Post{}, &models.Like{}, &models.Subscription{}); err != nil {
+	if err := db.AutoMigrate(&models.Post{}, &models.PostImage{}, &models.Like{}, &models.Subscription{}); err != nil {
 		log.Error("Failed to migrate database: %v", err)
 		panic(err)
 	}

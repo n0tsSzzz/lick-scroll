@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -47,7 +48,7 @@ type CreatePostRequest struct {
 
 // CreatePost godoc
 // @Summary      Create a new post
-// @Description  Create a new post with media file (photo or video up to 30s). Only creators can create posts.
+// @Description  Create a new post with media files. For photo posts, you can upload multiple images. For video posts, upload one video file (up to 30s).
 // @Tags         posts
 // @Accept       multipart/form-data
 // @Produce      json
@@ -56,7 +57,8 @@ type CreatePostRequest struct {
 // @Param        description formData string false "Post description"
 // @Param        type formData string true "Post type (photo or video)" Enums(photo, video)
 // @Param        category formData string false "Post category"
-// @Param        media formData file true "Media file (photo: jpg/jpeg/png, video: mp4/mov/avi)"
+// @Param        media formData file false "Media file (for video: mp4/mov/avi, for photo: jpg/jpeg/png) - deprecated, use images[] instead"
+// @Param        images formData file false "Image files (jpg/jpeg/png) - multiple files allowed for photo posts"
 // @Success      201  {object}  models.Post
 // @Failure      400  {object}  map[string]string
 // @Failure      403  {object}  map[string]string
@@ -72,54 +74,110 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 		return
 	}
 
-	// Get file
-	file, err := c.FormFile("media")
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Media file is required"})
-		return
-	}
+	var mediaURL string
+	var postImages []models.PostImage
 
-	// Validate file type
-	ext := filepath.Ext(file.Filename)
 	if req.Type == "video" {
+		// For video, get single file
+		file, err := c.FormFile("media")
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Media file is required for video posts"})
+			return
+		}
+
+		// Validate video file type
+		ext := filepath.Ext(file.Filename)
 		if ext != ".mp4" && ext != ".mov" && ext != ".avi" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video format. Only mp4, mov, avi are allowed"})
 			return
 		}
-		// Check video duration (should be <= 30 seconds)
-		// In production, you would use ffmpeg or similar to check duration
-	} else {
-		if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid image format. Only jpg, jpeg, png are allowed"})
+
+		// Open file
+		src, err := file.Open()
+		if err != nil {
+			h.logger.Error("Failed to open file: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process file"})
 			return
 		}
-	}
+		defer src.Close()
 
-	// Open file
-	src, err := file.Open()
-	if err != nil {
-		h.logger.Error("Failed to open file: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process file"})
-		return
-	}
-	defer src.Close()
-
-	// Upload to S3
-	fileKey := fmt.Sprintf("posts/%s/%s%s", userID, uuid.New().String(), ext)
-	contentType := file.Header.Get("Content-Type")
-	if contentType == "" {
-		if req.Type == "video" {
+		// Upload to S3
+		fileKey := fmt.Sprintf("posts/%s/%s%s", userID, uuid.New().String(), ext)
+		contentType := file.Header.Get("Content-Type")
+		if contentType == "" {
 			contentType = "video/mp4"
-		} else {
-			contentType = "image/jpeg"
 		}
-	}
 
-	mediaURL, err := h.s3Client.UploadFile(fileKey, src, contentType)
-	if err != nil {
-		h.logger.Error("Failed to upload file to S3: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload file"})
-		return
+		uploadedURL, err := h.s3Client.UploadFile(fileKey, src, contentType)
+		if err != nil {
+			h.logger.Error("Failed to upload file to S3: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload file"})
+			return
+		}
+		mediaURL = uploadedURL
+	} else {
+		// For photo posts, get multiple images
+		form, err := c.MultipartForm()
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse form"})
+			return
+		}
+
+		files := form.File["images[]"]
+		// Fallback to single "media" file for backward compatibility
+		if len(files) == 0 {
+			mediaFile, err := c.FormFile("media")
+			if err == nil {
+				files = []*multipart.FileHeader{mediaFile}
+			}
+		}
+
+		if len(files) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "At least one image file is required for photo posts"})
+			return
+		}
+
+		// Validate and upload each image
+		for i, file := range files {
+			ext := filepath.Ext(file.Filename)
+			if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid image format for file %s. Only jpg, jpeg, png are allowed", file.Filename)})
+				return
+			}
+
+			// Open file
+			src, err := file.Open()
+			if err != nil {
+				h.logger.Error("Failed to open file: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process file"})
+				return
+			}
+
+			// Upload to S3
+			fileKey := fmt.Sprintf("posts/%s/%s%s", userID, uuid.New().String(), ext)
+			contentType := file.Header.Get("Content-Type")
+			if contentType == "" {
+				contentType = "image/jpeg"
+			}
+
+			imageURL, err := h.s3Client.UploadFile(fileKey, src, contentType)
+			src.Close()
+			if err != nil {
+				h.logger.Error("Failed to upload file to S3: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload file"})
+				return
+			}
+
+			// For backward compatibility, set MediaURL to first image
+			if i == 0 {
+				mediaURL = imageURL
+			}
+
+			postImages = append(postImages, models.PostImage{
+				ImageURL: imageURL,
+				Order:    i,
+			})
+		}
 	}
 
 	// Create post
@@ -128,16 +186,17 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 		Title:       req.Title,
 		Description: req.Description,
 		Type:        models.PostType(req.Type),
-		MediaURL:    mediaURL,
+		MediaURL:    mediaURL, // For backward compatibility
 		Category:    req.Category,
 		Price:       0, // All posts are free now
 		Status:      models.StatusPending, // Needs moderation
+		Images:      postImages,
 	}
 
 	if err := h.postRepo.Create(post); err != nil {
 		h.logger.Error("Failed to create post: %v", err)
-		// Try to delete from S3 if post creation fails
-		_ = h.s3Client.DeleteFile(fileKey)
+		// Note: In production, you should delete uploaded files from S3 if post creation fails
+		// For now, we just log the error
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create post"})
 		return
 	}

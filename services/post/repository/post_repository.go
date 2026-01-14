@@ -35,12 +35,29 @@ func NewPostRepository(db *gorm.DB) PostRepository {
 }
 
 func (r *postRepository) Create(post *models.Post) error {
-	return r.db.Create(post).Error
+	// Create post with images in a transaction
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(post).Error; err != nil {
+			return err
+		}
+		// Create associated images
+		if len(post.Images) > 0 {
+			for i := range post.Images {
+				post.Images[i].PostID = post.ID
+			}
+			if err := tx.Create(&post.Images).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (r *postRepository) GetByID(id string) (*models.Post, error) {
 	var post models.Post
-	if err := r.db.Where("id = ?", id).First(&post).Error; err != nil {
+	if err := r.db.Preload("Images", func(db *gorm.DB) *gorm.DB {
+		return db.Order("post_images.order ASC")
+	}).Where("id = ?", id).First(&post).Error; err != nil {
 		return nil, err
 	}
 	return &post, nil
@@ -48,7 +65,9 @@ func (r *postRepository) GetByID(id string) (*models.Post, error) {
 
 func (r *postRepository) GetByCreatorID(creatorID string, limit, offset int) ([]*models.Post, error) {
 	var posts []*models.Post
-	query := r.db.Where("creator_id = ?", creatorID).Order("created_at DESC")
+	query := r.db.Preload("Images", func(db *gorm.DB) *gorm.DB {
+		return db.Order("post_images.order ASC")
+	}).Where("creator_id = ?", creatorID).Order("created_at DESC")
 	if limit > 0 {
 		query = query.Limit(limit).Offset(offset)
 	}
@@ -60,7 +79,9 @@ func (r *postRepository) GetByCreatorID(creatorID string, limit, offset int) ([]
 
 func (r *postRepository) List(limit, offset int, category string, status models.PostStatus) ([]*models.Post, error) {
 	var posts []*models.Post
-	query := r.db.Where("status = ?", status).Order("created_at DESC")
+	query := r.db.Preload("Images", func(db *gorm.DB) *gorm.DB {
+		return db.Order("post_images.order ASC")
+	}).Where("status = ?", status).Order("created_at DESC")
 	
 	if category != "" {
 		query = query.Where("category = ?", category)
@@ -113,6 +134,9 @@ func (r *postRepository) IsLiked(userID, postID string) (bool, error) {
 func (r *postRepository) GetLikedPosts(userID string, limit, offset int) ([]*models.Post, error) {
 	var posts []*models.Post
 	query := r.db.Table("posts").
+		Preload("Images", func(db *gorm.DB) *gorm.DB {
+			return db.Order("post_images.order ASC")
+		}).
 		Joins("INNER JOIN likes ON posts.id = likes.post_id").
 		Where("likes.user_id = ? AND likes.deleted_at IS NULL", userID).
 		Order("likes.created_at DESC")
