@@ -58,7 +58,7 @@ func main() {
 	}
 
 	jwtService := jwt.NewService(cfg.JWTSecret)
-	feedHandler := handlers.NewFeedHandler(redisClient, log)
+	feedHandler := handlers.NewFeedHandler(redisClient, db, log)
 
 	r := gin.Default()
 

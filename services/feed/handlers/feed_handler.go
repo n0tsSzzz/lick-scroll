@@ -8,19 +8,24 @@ import (
 	"strconv"
 
 	"lick-scroll/pkg/logger"
+	"lick-scroll/pkg/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type FeedHandler struct {
 	redisClient *redis.Client
+	db          *gorm.DB
 	logger      *logger.Logger
 }
 
-func NewFeedHandler(redisClient *redis.Client, logger *logger.Logger) *FeedHandler {
+func NewFeedHandler(redisClient *redis.Client, db *gorm.DB, logger *logger.Logger) *FeedHandler {
 	return &FeedHandler{
 		redisClient: redisClient,
+		db:          db,
 		logger:      logger,
 	}
 }
@@ -81,6 +86,13 @@ func (h *FeedHandler) GetFeed(c *gin.Context) {
 		if postData["creator_id"] == userID {
 			continue
 		}
+
+		// Increment view count for posts in feed
+		go func(pid string) {
+			if err := h.db.Model(&models.Post{}).Where("id = ?", pid).UpdateColumn("views", clause.Expr{SQL: "views + ?", Vars: []interface{}{1}}).Error; err != nil {
+				h.logger.Error("Failed to increment views for post %s: %v", pid, err)
+			}
+		}(postID)
 
 		// All posts are free now - no access restrictions
 		postItem := map[string]interface{}{
@@ -158,6 +170,13 @@ func (h *FeedHandler) GetFeedByCategory(c *gin.Context) {
 		if postData["creator_id"] == userID {
 			continue
 		}
+
+		// Increment view count for posts in feed
+		go func(pid string) {
+			if err := h.db.Model(&models.Post{}).Where("id = ?", pid).UpdateColumn("views", clause.Expr{SQL: "views + ?", Vars: []interface{}{1}}).Error; err != nil {
+				h.logger.Error("Failed to increment views for post %s: %v", pid, err)
+			}
+		}(postID)
 
 		// All posts are free now - no access restrictions
 		postItem := map[string]interface{}{
