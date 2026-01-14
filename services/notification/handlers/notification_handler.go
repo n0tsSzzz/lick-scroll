@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"lick-scroll/pkg/logger"
@@ -177,6 +178,55 @@ func (h *NotificationHandler) ProcessNotificationQueue(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message":      "Notification queue consumer started",
 		"queue_length": queueLength,
+	})
+}
+
+// GetNotifications godoc
+// @Summary      Get user notifications
+// @Description  Get all notifications for the authenticated user
+// @Tags         notifications
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        limit query int false "Number of notifications to return (max 100)"
+// @Success      200  {object}  map[string]interface{}
+// @Router       /notifications [get]
+func (h *NotificationHandler) GetNotifications(c *gin.Context) {
+	userID := c.GetString("user_id")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID required"})
+		return
+	}
+
+	limit := 50
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
+			limit = l
+		}
+	}
+
+	ctx := context.Background()
+	userNotificationsKey := fmt.Sprintf("notifications:%s", userID)
+
+	// Get notifications from Redis list
+	notificationsJSON, err := h.redisClient.LRange(ctx, userNotificationsKey, 0, int64(limit-1)).Result()
+	if err != nil && err != redis.Nil {
+		h.logger.Error("Failed to get notifications: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch notifications"})
+		return
+	}
+
+	var notifications []Notification
+	for _, notifJSON := range notificationsJSON {
+		var notification Notification
+		if err := json.Unmarshal([]byte(notifJSON), &notification); err == nil {
+			notifications = append(notifications, notification)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"notifications": notifications,
+		"count":         len(notifications),
 	})
 }
 

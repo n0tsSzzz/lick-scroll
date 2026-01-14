@@ -367,7 +367,8 @@
         <div class="section" id="notificationSection" style="display: none;">
             <h2>🔔 Уведомления</h2>
             <div class="btn-group">
-                <button onclick="processNotificationQueue()">Обработать очередь уведомлений</button>
+                <button onclick="getNotifications()">Получить уведомления</button>
+                <button onclick="processNotificationQueue()" class="btn-secondary">Обработать очередь уведомлений</button>
             </div>
             <div id="notificationResult" class="result" style="display: none;"></div>
         </div>
@@ -819,6 +820,29 @@
         }
 
         // Notification Functions
+        async function getNotifications() {
+            if (!authToken) {
+                showResult('notificationResult', { error: 'Please login first' }, true);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE.notification}/notifications`, {
+                    headers: getHeaders()
+                });
+
+                const result = await response.json();
+                if (!response.ok && response.status === 401) {
+                    logout();
+                    showResult('notificationResult', { error: 'Session expired. Please login again.' }, true);
+                } else {
+                    showResult('notificationResult', result, !response.ok);
+                }
+            } catch (error) {
+                showResult('notificationResult', { error: error.message }, true);
+            }
+        }
+
         async function processNotificationQueue() {
             try {
                 const response = await fetch(`${API_BASE.notification}/notifications/process-queue`, {

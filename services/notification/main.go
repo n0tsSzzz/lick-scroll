@@ -10,7 +10,9 @@ import (
 
 	"lick-scroll/pkg/cache"
 	"lick-scroll/pkg/config"
+	"lick-scroll/pkg/jwt"
 	"lick-scroll/pkg/logger"
+	"lick-scroll/pkg/middleware"
 	"lick-scroll/pkg/queue"
 	"lick-scroll/services/notification/handlers"
 
@@ -37,6 +39,7 @@ func main() {
 		panic(err)
 	}
 
+	jwtService := jwt.NewService(cfg.JWTSecret)
 	notificationHandler := handlers.NewNotificationHandler(redisClient, queueClient, log)
 
 	r := gin.Default()
@@ -57,6 +60,13 @@ func main() {
 	})
 
 	api := r.Group("/api/v1")
+	// Protected routes - require authentication
+	protected := api.Group("")
+	protected.Use(middleware.AuthMiddleware(jwtService))
+	{
+		protected.GET("/notifications", notificationHandler.GetNotifications)
+	}
+	// Admin routes - no auth required (for internal service calls)
 	{
 		api.POST("/notifications/send", notificationHandler.SendNotification)
 		api.POST("/notifications/broadcast", notificationHandler.BroadcastNotification)
