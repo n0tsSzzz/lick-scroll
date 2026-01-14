@@ -70,10 +70,22 @@ run-moderation:
 run-analytics:
 	@cd services/analytics && go run main.go
 
-# Database migrations (using GORM auto-migrate)
+# Database migrations (using goose)
 migrate:
 	@echo "Running migrations..."
-	@go run scripts/migrate.go
+	@go run ./cmd/migrate/main.go -dir=migrations -command=up
+
+migrate-down:
+	@echo "Rolling back migrations..."
+	@go run ./cmd/migrate/main.go -dir=migrations -command=down
+
+migrate-status:
+	@echo "Migration status:"
+	@go run ./cmd/migrate/main.go -dir=migrations -command=status
+
+migrate-create:
+	@echo "Creating new migration: $(NAME)"
+	@go run ./cmd/migrate/main.go -dir=migrations -command=create -name=$(NAME)
 
 # Install dependencies
 deps:

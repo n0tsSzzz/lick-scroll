@@ -65,11 +65,7 @@ func main() {
 		panic(err)
 	}
 
-	// Auto migrate
-	if err := db.AutoMigrate(&models.Post{}, &models.PostImage{}, &models.Like{}, &models.Subscription{}); err != nil {
-		log.Error("Failed to migrate database: %v", err)
-		panic(err)
-	}
+	// Migrations are handled by goose - see cmd/migrate/main.go
 
 	redisClient, err := cache.NewRedisClient(cfg)
 	if err != nil {

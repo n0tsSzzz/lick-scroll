@@ -259,6 +259,24 @@ services:
       redis:
         condition: service_healthy
 
+  migrate:
+    build:
+      context: .
+      dockerfile: cmd/migrate/Dockerfile
+    container_name: lick-scroll-migrate
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: lickscroll
+      DB_SSLMODE: disable
+    command: -dir=/app/migrations -command=up
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
 volumes:
   postgres_data:
   redis_data:

@@ -66,11 +66,7 @@ func main() {
 		panic(err)
 	}
 
-	// Auto migrate
-	if err := db.AutoMigrate(&models.User{}); err != nil {
-		log.Error("Failed to migrate database: %v", err)
-		panic(err)
-	}
+	// Migrations are handled by goose - see cmd/migrate/main.go
 
 	jwtService := jwt.NewService(cfg.JWTSecret)
 	userRepo := repository.NewUserRepository(db)
