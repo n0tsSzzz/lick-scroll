@@ -26,7 +26,7 @@ func NewAnalyticsHandler(analyticsRepo repository.AnalyticsRepository, redisClie
 
 // GetCreatorStats godoc
 // @Summary      Get creator statistics
-// @Description  Get overall statistics for the authenticated creator
+// @Description  Get overall statistics for the authenticated creator. Views are incremented when someone views a post via GET /posts/{id}. Revenue is calculated from donations received.
 // @Tags         analytics
 // @Accept       json
 // @Produce      json
