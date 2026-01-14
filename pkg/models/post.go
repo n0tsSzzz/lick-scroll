@@ -30,7 +30,6 @@ type Post struct {
 	Type        PostType  `gorm:"type:varchar(10);not null" json:"type"`
 	MediaURL    string    `gorm:"not null" json:"media_url"` // Deprecated: use Images instead. Kept for backward compatibility
 	ThumbnailURL string   `json:"thumbnail_url"` // Deprecated: use Images instead. Kept for backward compatibility
-	Price       int       `gorm:"default:0" json:"price"` // Price in internal currency
 	Category    string    `gorm:"index" json:"category"`
 	Status      PostStatus `gorm:"type:varchar(20);default:'pending'" json:"status"`
 	Views       int       `gorm:"default:0" json:"views"`
