@@ -129,7 +129,7 @@ func (h *FanoutHandler) FanoutPost(c *gin.Context) {
 }
 
 type SubscribeRequest struct {
-	Type string `json:"type" binding:"omitempty,oneof=free paid"` // Default: free
+	// Type removed - only free subscriptions are supported
 }
 
 func (h *FanoutHandler) Subscribe(c *gin.Context) {
@@ -142,27 +142,11 @@ func (h *FanoutHandler) Subscribe(c *gin.Context) {
 	}
 
 	var req SubscribeRequest
-	if err := c.ShouldBindJSON(&req); err != nil && err.Error() != "EOF" {
-		// If no body, default to free
-		req.Type = "free"
-	} else if req.Type == "" {
-		req.Type = "free"
-	}
+	// Ignore request body - only free subscriptions are supported
 
 	// Check if already subscribed
 	var existing models.Subscription
 	if err := h.db.Where("viewer_id = ? AND creator_id = ?", viewerID, creatorID).First(&existing).Error; err == nil {
-		// Update subscription type if different
-		if existing.Type != models.SubscriptionType(req.Type) {
-			existing.Type = models.SubscriptionType(req.Type)
-			if err := h.db.Save(&existing).Error; err != nil {
-				h.logger.Error("Failed to update subscription: %v", err)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update subscription"})
-				return
-			}
-			c.JSON(http.StatusOK, gin.H{"message": "Subscription updated", "type": req.Type})
-			return
-		}
 		c.JSON(http.StatusConflict, gin.H{"error": "Already subscribed"})
 		return
 	}
@@ -170,7 +154,7 @@ func (h *FanoutHandler) Subscribe(c *gin.Context) {
 	subscription := &models.Subscription{
 		ViewerID:  viewerID,
 		CreatorID: creatorID,
-		Type:      models.SubscriptionType(req.Type),
+		Type:      models.SubscriptionTypeFree, // Only free subscriptions
 	}
 
 	if err := h.db.Create(subscription).Error; err != nil {
@@ -179,7 +163,7 @@ func (h *FanoutHandler) Subscribe(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "Subscribed successfully", "type": req.Type})
+	c.JSON(http.StatusCreated, gin.H{"message": "Subscribed successfully", "type": "free"})
 }
 
 func (h *FanoutHandler) Unsubscribe(c *gin.Context) {

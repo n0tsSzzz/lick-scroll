@@ -43,7 +43,6 @@ type CreatePostRequest struct {
 	Description string `form:"description"`
 	Type        string `form:"type" binding:"required,oneof=photo video"`
 	Category    string `form:"category"`
-	Price       int    `form:"price"`
 }
 
 // CreatePost godoc
@@ -57,7 +56,6 @@ type CreatePostRequest struct {
 // @Param        description formData string false "Post description"
 // @Param        type formData string true "Post type (photo or video)" Enums(photo, video)
 // @Param        category formData string false "Post category"
-// @Param        price formData int false "Post price in internal currency"
 // @Param        media formData file true "Media file (photo: jpg/jpeg/png, video: mp4/mov/avi)"
 // @Success      201  {object}  models.Post
 // @Failure      400  {object}  map[string]string
@@ -132,7 +130,7 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 		Type:        models.PostType(req.Type),
 		MediaURL:    mediaURL,
 		Category:    req.Category,
-		Price:       req.Price,
+		Price:       0, // All posts are free now
 		Status:      models.StatusPending, // Needs moderation
 	}
 
@@ -152,7 +150,6 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 		"creator_id":  post.CreatorID,
 		"title":       post.Title,
 		"media_url":   post.MediaURL,
-		"price":       fmt.Sprintf("%d", post.Price),
 		"category":    post.Category,
 		"status":      string(post.Status),
 	}
@@ -231,7 +228,6 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 // @Router       /posts/{id} [get]
 func (h *PostHandler) GetPost(c *gin.Context) {
 	postID := c.Param("id")
-	userID := c.GetString("user_id")
 
 	// Try to get from cache first
 	ctx := context.Background()
@@ -247,37 +243,12 @@ func (h *PostHandler) GetPost(c *gin.Context) {
 		return
 	}
 
-	// Check if user has access to media
-	hasAccess := false
-	if post.Price == 0 {
-		// Free post - everyone has access
-		hasAccess = true
-	} else {
-		// Paid post - check if purchased or has paid subscription
-		// Check if purchased
-		purchaseKey := fmt.Sprintf("purchase:%s:%s", userID, postID)
-		purchased, _ := h.redisClient.Exists(ctx, purchaseKey).Result()
-		if purchased > 0 {
-			hasAccess = true
-		} else {
-			// Check if has paid subscription to creator
-			subscription, err := h.postRepo.GetSubscription(userID, post.CreatorID)
-			if err == nil && subscription.Type == models.SubscriptionTypePaid {
-				hasAccess = true
-			}
-		}
-	}
-
-	// If no access, hide media URL
-	responsePost := *post
-	if !hasAccess && post.Price > 0 {
-		responsePost.MediaURL = "" // Hide media if not purchased/subscribed
-	}
+	// All posts are free now - no access restrictions
 
 	// Increment views
 	go h.postRepo.IncrementViews(postID)
 
-	c.JSON(http.StatusOK, responsePost)
+	c.JSON(http.StatusOK, post)
 }
 
 // ListPosts godoc
@@ -342,7 +313,7 @@ func (h *PostHandler) ListPosts(c *gin.Context) {
 // @Produce      json
 // @Security     BearerAuth
 // @Param        id path string true "Post ID"
-// @Param        request body object true "Update data" SchemaExample({"title":"Updated title","description":"Updated description","category":"fetish","price":150})
+// @Param        request body object true "Update data" SchemaExample({"title":"Updated title","description":"Updated description","category":"fetish"})
 // @Success      200  {object}  models.Post
 // @Failure      400  {object}  map[string]string
 // @Failure      403  {object}  map[string]string
@@ -369,7 +340,6 @@ func (h *PostHandler) UpdatePost(c *gin.Context) {
 		Title       string `json:"title"`
 		Description string `json:"description"`
 		Category    string `json:"category"`
-		Price       int    `json:"price"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -385,9 +355,6 @@ func (h *PostHandler) UpdatePost(c *gin.Context) {
 	}
 	if req.Category != "" {
 		post.Category = req.Category
-	}
-	if req.Price >= 0 {
-		post.Price = req.Price
 	}
 
 	if err := h.postRepo.Update(post); err != nil {

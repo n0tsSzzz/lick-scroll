@@ -104,35 +104,44 @@ func (h *WalletHandler) TopUp(c *gin.Context) {
 	c.JSON(http.StatusOK, wallet)
 }
 
-// PurchasePost godoc
-// @Summary      Purchase post
-// @Description  Purchase a post using wallet balance
+type DonateRequest struct {
+	Amount int `json:"amount" binding:"required,min=1"`
+}
+
+// DonateToPost godoc
+// @Summary      Donate to post creator
+// @Description  Donate to the creator of a post using wallet balance
 // @Tags         wallet
 // @Accept       json
 // @Produce      json
 // @Security     BearerAuth
 // @Param        post_id path string true "Post ID"
+// @Param        request body DonateRequest true "Donation amount"
 // @Success      200  {object}  map[string]interface{}
 // @Failure      400  {object}  map[string]string
-// @Router       /wallet/purchase/{post_id} [post]
-func (h *WalletHandler) PurchasePost(c *gin.Context) {
+// @Router       /wallet/donate/{post_id} [post]
+func (h *WalletHandler) DonateToPost(c *gin.Context) {
 	userID := c.GetString("user_id")
 	postID := c.Param("post_id")
 
-	// Get post price from cache
-	ctx := context.Background()
-	postKey := fmt.Sprintf("post:%s", postID)
-	priceStr, err := h.redisClient.HGet(ctx, postKey, "price").Result()
-	if err != nil {
-		// If not in cache, we would need to call post service
-		// For MVP, return error
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Post not found or price not available. Please try again."})
+	var req DonateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	price, err := strconv.Atoi(priceStr)
-	if err != nil || price < 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid post price"})
+	// Get post creator from cache
+	ctx := context.Background()
+	postKey := fmt.Sprintf("post:%s", postID)
+	creatorID, err := h.redisClient.HGet(ctx, postKey, "creator_id").Result()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Post not found"})
+		return
+	}
+
+	// Can't donate to yourself
+	if creatorID == userID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot donate to your own post"})
 		return
 	}
 
@@ -143,47 +152,63 @@ func (h *WalletHandler) PurchasePost(c *gin.Context) {
 		return
 	}
 
-	if wallet.Balance < price {
+	if wallet.Balance < req.Amount {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Insufficient balance"})
 		return
 	}
 
-	// Check if already purchased
-	purchaseKey := fmt.Sprintf("purchase:%s:%s", userID, postID)
-	alreadyPurchased, _ := h.redisClient.Exists(ctx, purchaseKey).Result()
-	if alreadyPurchased > 0 {
-		c.JSON(http.StatusConflict, gin.H{"error": "Post already purchased"})
-		return
-	}
-
-	// Deduct balance
+	// Deduct balance from donor
 	balanceBefore := wallet.Balance
-	wallet.Balance -= price
+	wallet.Balance -= req.Amount
 	if err := h.walletRepo.UpdateWallet(wallet); err != nil {
 		h.logger.Error("Failed to update wallet: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process purchase"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process donation"})
 		return
 	}
 
-	// Create transaction
-	transaction := &models.Transaction{
+	// Create transaction for donor
+	donorTransaction := &models.Transaction{
 		UserID:        userID,
 		PostID:        postID,
-		Type:          models.TransactionTypePurchase,
-		Amount:        -price,
+		Type:          models.TransactionTypeDonation,
+		Amount:        -req.Amount,
 		BalanceBefore: balanceBefore,
 		BalanceAfter:  wallet.Balance,
 	}
-	if err := h.walletRepo.CreateTransaction(transaction); err != nil {
+	if err := h.walletRepo.CreateTransaction(donorTransaction); err != nil {
 		h.logger.Error("Failed to create transaction: %v", err)
 	}
 
-	// Mark as purchased
-	h.redisClient.Set(ctx, purchaseKey, "1", 0) // Never expire
+	// Add balance to creator
+	creatorWallet, err := h.walletRepo.GetOrCreateWallet(creatorID)
+	if err != nil {
+		h.logger.Error("Failed to get creator wallet: %v", err)
+		// Don't fail the donation, just log the error
+	} else {
+		creatorBalanceBefore := creatorWallet.Balance
+		creatorWallet.Balance += req.Amount
+		if err := h.walletRepo.UpdateWallet(creatorWallet); err != nil {
+			h.logger.Error("Failed to update creator wallet: %v", err)
+		} else {
+			// Create transaction for creator
+			creatorTransaction := &models.Transaction{
+				UserID:        creatorID,
+				PostID:        postID,
+				Type:          models.TransactionTypeEarn,
+				Amount:        req.Amount,
+				BalanceBefore: creatorBalanceBefore,
+				BalanceAfter:  creatorWallet.Balance,
+			}
+			if err := h.walletRepo.CreateTransaction(creatorTransaction); err != nil {
+				h.logger.Error("Failed to create creator transaction: %v", err)
+			}
+		}
+	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Post purchased successfully",
+		"message": "Donation sent successfully",
 		"wallet":  wallet,
+		"amount":  req.Amount,
 	})
 }
 

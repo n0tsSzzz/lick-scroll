@@ -11,7 +11,7 @@ type SubscriptionType string
 
 const (
 	SubscriptionTypeFree SubscriptionType = "free"
-	SubscriptionTypePaid SubscriptionType = "paid"
+	// SubscriptionTypePaid removed - only free subscriptions are supported
 )
 
 type Subscription struct {

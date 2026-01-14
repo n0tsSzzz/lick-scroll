@@ -13,6 +13,7 @@ const (
 	TransactionTypePurchase TransactionType = "purchase"
 	TransactionTypeEarn     TransactionType = "earn"
 	TransactionTypeRefund   TransactionType = "refund"
+	TransactionTypeDonation TransactionType = "donation"
 )
 
 type Wallet struct {

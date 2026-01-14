@@ -233,10 +233,6 @@
                         <input type="text" id="postCategory" placeholder="fetish, cosplay, etc.">
                     </div>
                     <div class="form-group">
-                        <label>Price:</label>
-                        <input type="number" id="postPrice" placeholder="100" value="0">
-                    </div>
-                    <div class="form-group">
                         <label>Media File:</label>
                         <input type="file" id="postMedia" accept="image/*,video/*">
                     </div>
@@ -298,12 +294,16 @@
             </div>
             <div class="grid" style="margin-top: 20px;">
                 <div>
-                    <h3>Купить пост</h3>
+                    <h3>Донат за пост</h3>
                     <div class="form-group">
                         <label>Post ID:</label>
-                        <input type="text" id="purchasePostId" placeholder="post-id">
+                        <input type="text" id="donatePostId" placeholder="post-id">
                     </div>
-                    <button onclick="purchasePost()">Купить пост</button>
+                    <div class="form-group">
+                        <label>Amount:</label>
+                        <input type="number" id="donateAmount" placeholder="100" value="100" min="1">
+                    </div>
+                    <button onclick="donateToPost()">Донатнуть</button>
                 </div>
             </div>
             <div id="walletResult" class="result" style="display: none;"></div>
@@ -336,10 +336,7 @@
                     </div>
                     <div class="form-group">
                         <label>Тип подписки:</label>
-                        <select id="subscribeType">
-                            <option value="free">Бесплатная (уведомления)</option>
-                            <option value="paid">Платная (бесплатные посты)</option>
-                        </select>
+                        <input type="text" value="Бесплатная (уведомления)" disabled style="background: #f0f0f0;">
                     </div>
                     <button onclick="subscribe()">Подписаться</button>
                 </div>
@@ -515,7 +512,6 @@
             formData.append('description', document.getElementById('postDescription').value);
             formData.append('type', document.getElementById('postType').value);
             formData.append('category', document.getElementById('postCategory').value);
-            formData.append('price', document.getElementById('postPrice').value);
             
             const fileInput = document.getElementById('postMedia');
             if (fileInput.files.length > 0) {
@@ -654,16 +650,39 @@
             }
         }
 
-        async function purchasePost() {
-            const postId = document.getElementById('purchasePostId').value;
+        async function donateToPost() {
+            const postId = document.getElementById('donatePostId').value;
+            const amount = parseInt(document.getElementById('donateAmount').value);
+            
+            if (!postId) {
+                showResult('walletResult', { error: 'Post ID is required' }, true);
+                return;
+            }
+            
+            if (!amount || amount < 1) {
+                showResult('walletResult', { error: 'Amount must be at least 1' }, true);
+                return;
+            }
+
+            if (!authToken) {
+                showResult('walletResult', { error: 'Please login first' }, true);
+                return;
+            }
+
             try {
-                const response = await fetch(`${API_BASE.wallet}/wallet/purchase/${postId}`, {
+                const response = await fetch(`${API_BASE.wallet}/wallet/donate/${postId}`, {
                     method: 'POST',
-                    headers: getHeaders()
+                    headers: getHeaders(),
+                    body: JSON.stringify({ amount })
                 });
 
                 const result = await response.json();
-                showResult('walletResult', result, !response.ok);
+                if (!response.ok && response.status === 401) {
+                    logout();
+                    showResult('walletResult', { error: 'Session expired. Please login again.' }, true);
+                } else {
+                    showResult('walletResult', result, !response.ok);
+                }
             } catch (error) {
                 showResult('walletResult', { error: error.message }, true);
             }
@@ -726,7 +745,6 @@
         // Subscription Functions
         async function subscribe() {
             const creatorId = document.getElementById('subscribeCreatorId').value;
-            const type = document.getElementById('subscribeType').value;
             
             if (!creatorId) {
                 showResult('subscriptionResult', { error: 'Creator ID is required' }, true);
@@ -741,8 +759,7 @@
             try {
                 const response = await fetch(`${API_BASE.fanout}/subscribe/${creatorId}`, {
                     method: 'POST',
-                    headers: getHeaders(),
-                    body: JSON.stringify({ type })
+                    headers: getHeaders()
                 });
 
                 const result = await response.json();

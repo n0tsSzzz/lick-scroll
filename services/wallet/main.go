@@ -96,7 +96,7 @@ func main() {
 	{
 		api.GET("/wallet", walletHandler.GetWallet)
 		api.POST("/wallet/topup", walletHandler.TopUp)
-		api.POST("/wallet/purchase/:post_id", walletHandler.PurchasePost)
+		api.POST("/wallet/donate/:post_id", walletHandler.DonateToPost)
 		api.GET("/wallet/transactions", walletHandler.GetTransactions)
 	}
 

@@ -85,40 +85,13 @@ func (h *FeedHandler) GetFeed(c *gin.Context) {
 				continue
 			}
 
-			price, _ := strconv.Atoi(postData["price"])
-			hasAccess := false
-			
-			// Check access to media
-			if price == 0 {
-				hasAccess = true
-			} else {
-				// Check if purchased
-				purchaseKey := fmt.Sprintf("purchase:%s:%s", userID, postID)
-				purchased, _ := h.redisClient.Exists(ctx, purchaseKey).Result()
-				if purchased > 0 {
-					hasAccess = true
-				} else {
-					// Check if has paid subscription
-					subscription, err := h.postRepo.GetSubscription(userID, postData["creator_id"])
-					if err == nil && subscription.Type == models.SubscriptionTypePaid {
-						hasAccess = true
-					}
-				}
-			}
-
+			// All posts are free now - no access restrictions
 			postItem := map[string]interface{}{
 				"id":         postData["id"],
 				"title":      postData["title"],
 				"creator_id": postData["creator_id"],
-				"price":      postData["price"],
 				"category":   postData["category"],
-			}
-			
-			// Only include media_url if user has access
-			if hasAccess {
-				postItem["media_url"] = postData["media_url"]
-			} else {
-				postItem["media_url"] = "" // Hide media
+				"media_url":  postData["media_url"],
 			}
 			
 			posts = append(posts, postItem)
@@ -181,40 +154,13 @@ func (h *FeedHandler) GetFeedByCategory(c *gin.Context) {
 				continue
 			}
 
-			price, _ := strconv.Atoi(postData["price"])
-			hasAccess := false
-			
-			// Check access to media
-			if price == 0 {
-				hasAccess = true
-			} else {
-				// Check if purchased
-				purchaseKey := fmt.Sprintf("purchase:%s:%s", userID, postID)
-				purchased, _ := h.redisClient.Exists(ctx, purchaseKey).Result()
-				if purchased > 0 {
-					hasAccess = true
-				} else {
-					// Check if has paid subscription
-					subscription, err := h.postRepo.GetSubscription(userID, postData["creator_id"])
-					if err == nil && subscription.Type == models.SubscriptionTypePaid {
-						hasAccess = true
-					}
-				}
-			}
-
+			// All posts are free now - no access restrictions
 			postItem := map[string]interface{}{
 				"id":         postData["id"],
 				"title":      postData["title"],
 				"creator_id": postData["creator_id"],
-				"price":      postData["price"],
 				"category":   postData["category"],
-			}
-			
-			// Only include media_url if user has access
-			if hasAccess {
-				postItem["media_url"] = postData["media_url"]
-			} else {
-				postItem["media_url"] = "" // Hide media
+				"media_url":  postData["media_url"],
 			}
 			
 			posts = append(posts, postItem)
