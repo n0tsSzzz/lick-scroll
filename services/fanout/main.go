@@ -14,7 +14,6 @@ import (
 	"lick-scroll/pkg/jwt"
 	"lick-scroll/pkg/logger"
 	"lick-scroll/pkg/middleware"
-	"lick-scroll/pkg/models"
 	"lick-scroll/pkg/queue"
 	"lick-scroll/services/fanout/handlers"
 
