@@ -12,7 +12,6 @@ import (
 	"lick-scroll/pkg/database"
 	"lick-scroll/pkg/jwt"
 	"lick-scroll/pkg/logger"
-	"lick-scroll/pkg/models"
 	"lick-scroll/services/auth/handlers"
 	"lick-scroll/services/auth/repository"
 
