@@ -15,7 +15,6 @@ import (
 	"lick-scroll/pkg/logger"
 	"lick-scroll/pkg/middleware"
 	"lick-scroll/services/feed/handlers"
-	"lick-scroll/services/post/repository"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -59,8 +58,7 @@ func main() {
 	}
 
 	jwtService := jwt.NewService(cfg.JWTSecret)
-	postRepo := repository.NewPostRepository(db)
-	feedHandler := handlers.NewFeedHandler(redisClient, log, postRepo)
+	feedHandler := handlers.NewFeedHandler(redisClient, log)
 
 	r := gin.Default()
 

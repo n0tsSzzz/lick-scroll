@@ -7,8 +7,6 @@ import (
 	"strconv"
 
 	"lick-scroll/pkg/logger"
-	"lick-scroll/pkg/models"
-	"lick-scroll/services/post/repository"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -17,14 +15,12 @@ import (
 type FeedHandler struct {
 	redisClient *redis.Client
 	logger      *logger.Logger
-	postRepo    repository.PostRepository
 }
 
-func NewFeedHandler(redisClient *redis.Client, logger *logger.Logger, postRepo repository.PostRepository) *FeedHandler {
+func NewFeedHandler(redisClient *redis.Client, logger *logger.Logger) *FeedHandler {
 	return &FeedHandler{
 		redisClient: redisClient,
 		logger:      logger,
-		postRepo:    postRepo,
 	}
 }
 
