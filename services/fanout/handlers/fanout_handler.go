@@ -141,8 +141,7 @@ func (h *FanoutHandler) Subscribe(c *gin.Context) {
 		return
 	}
 
-	var req SubscribeRequest
-	// Ignore request body - only free subscriptions are supported
+	// Only free subscriptions are supported - no request body needed
 
 	// Check if already subscribed
 	var existing models.Subscription
