@@ -18,3 +18,8 @@ CREATE INDEX idx_subscriptions_creator_id ON subscriptions(creator_id);
 CREATE INDEX idx_subscriptions_deleted_at ON subscriptions(deleted_at);
 -- +goose StatementEnd
 
+
+-- +goose Down
+-- +goose StatementBegin
+DROP TABLE IF EXISTS subscriptions;
+-- +goose StatementEnd

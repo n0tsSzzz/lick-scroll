@@ -18,3 +18,8 @@ CREATE INDEX idx_transactions_post_id ON transactions(post_id);
 CREATE INDEX idx_transactions_type ON transactions(type);
 -- +goose StatementEnd
 
+
+-- +goose Down
+-- +goose StatementBegin
+DROP TABLE IF EXISTS transactions;
+-- +goose StatementEnd

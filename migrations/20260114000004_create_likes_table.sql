@@ -17,3 +17,8 @@ CREATE INDEX idx_likes_post_id ON likes(post_id);
 CREATE INDEX idx_likes_deleted_at ON likes(deleted_at);
 -- +goose StatementEnd
 
+
+-- +goose Down
+-- +goose StatementBegin
+DROP TABLE IF EXISTS likes;
+-- +goose StatementEnd

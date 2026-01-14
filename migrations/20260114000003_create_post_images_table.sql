@@ -17,3 +17,8 @@ CREATE INDEX idx_post_images_order ON post_images("order");
 CREATE INDEX idx_post_images_deleted_at ON post_images(deleted_at);
 -- +goose StatementEnd
 
+
+-- +goose Down
+-- +goose StatementBegin
+DROP TABLE IF EXISTS images;
+-- +goose StatementEnd
