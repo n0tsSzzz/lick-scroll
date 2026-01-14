@@ -288,8 +288,7 @@ services:
     command: -dir=/app/migrations -command=up
     depends_on:
       postgres:
-        condition: service_healthy      migrate:
-        condition: service_completed_successfully
+        condition: service_healthy
     restart: "no"
 
 volumes:
