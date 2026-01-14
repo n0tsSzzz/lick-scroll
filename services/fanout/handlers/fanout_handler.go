@@ -88,37 +88,29 @@ func (h *FanoutHandler) FanoutPost(c *gin.Context) {
 		h.redisClient.Expire(ctx, postKey, 24*time.Hour)
 	}
 
-	// Send notifications to all subscribers (free subscriptions get notifications)
+	// Send notifications to all subscribers
 	// Create notification tasks and publish to RabbitMQ priority queue
 	notificationTasks := 0
-	freeSubscribers := 0
 	for _, sub := range subscriptions {
-		h.logger.Info("Processing subscription: viewer=%s, type=%s", sub.ViewerID, sub.Type)
-		// Free subscribers get notifications about new posts
-		if sub.Type == models.SubscriptionTypeFree {
-			freeSubscribers++
-			task := map[string]interface{}{
-				"user_id":    sub.ViewerID,
-				"post_id":    req.PostID,
-				"creator_id": req.CreatorID,
-				"type":       "new_post",
-				"priority":   1, // Normal priority
-			}
-			if err := h.queueClient.PublishNotificationTask(task); err != nil {
-				h.logger.Error("Failed to publish notification task: %v", err)
-				// Continue processing other tasks even if one fails
-			} else {
-				notificationTasks++
-				h.logger.Info("Successfully published notification task for user %s", sub.ViewerID)
-			}
+		task := map[string]interface{}{
+			"user_id":    sub.ViewerID,
+			"post_id":    req.PostID,
+			"creator_id": req.CreatorID,
+			"type":       "new_post",
+			"priority":   1, // Normal priority
+		}
+		if err := h.queueClient.PublishNotificationTask(task); err != nil {
+			h.logger.Error("Failed to publish notification task: %v", err)
+			// Continue processing other tasks even if one fails
+		} else {
+			notificationTasks++
+			h.logger.Info("Successfully published notification task for user %s", sub.ViewerID)
 		}
 	}
 
-	h.logger.Info("Total subscribers: %d, Free subscribers: %d, Published tasks: %d", len(subscriptions), freeSubscribers, notificationTasks)
+	h.logger.Info("Total subscribers: %d, Published tasks: %d", len(subscriptions), notificationTasks)
 	if notificationTasks > 0 {
 		h.logger.Info("Published %d notification tasks to RabbitMQ queue", notificationTasks)
-	} else if len(subscriptions) > 0 {
-		h.logger.Info("No notification tasks published (all subscribers are paid or no free subscribers)")
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -141,8 +133,6 @@ func (h *FanoutHandler) Subscribe(c *gin.Context) {
 		return
 	}
 
-	// Only free subscriptions are supported - no request body needed
-
 	// Check if already subscribed
 	var existing models.Subscription
 	if err := h.db.Where("viewer_id = ? AND creator_id = ?", viewerID, creatorID).First(&existing).Error; err == nil {
@@ -153,7 +143,6 @@ func (h *FanoutHandler) Subscribe(c *gin.Context) {
 	subscription := &models.Subscription{
 		ViewerID:  viewerID,
 		CreatorID: creatorID,
-		Type:      models.SubscriptionTypeFree, // Only free subscriptions
 	}
 
 	if err := h.db.Create(subscription).Error; err != nil {
@@ -162,7 +151,7 @@ func (h *FanoutHandler) Subscribe(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "Subscribed successfully", "type": "free"})
+	c.JSON(http.StatusCreated, gin.H{"message": "Subscribed successfully"})
 }
 
 func (h *FanoutHandler) Unsubscribe(c *gin.Context) {
@@ -208,7 +197,7 @@ func (h *FanoutHandler) GetSubscriptionStatus(c *gin.Context) {
 
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusOK, gin.H{"subscribed": false, "type": ""})
+			c.JSON(http.StatusOK, gin.H{"subscribed": false})
 			return
 		}
 		h.logger.Error("Failed to get subscription status: %v", err)
@@ -216,6 +205,6 @@ func (h *FanoutHandler) GetSubscriptionStatus(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"subscribed": true, "type": subscription.Type})
+	c.JSON(http.StatusOK, gin.H{"subscribed": true})
 }
 
