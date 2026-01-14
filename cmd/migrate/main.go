@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
 
@@ -75,6 +76,13 @@ func main() {
 		log.Fatalf("Failed to set dialect: %v", err)
 	}
 
+	// Create filesystem from directory
+	var migrationsFS fs.FS
+	if *dir == "" {
+		log.Fatal("Directory is required")
+	}
+	migrationsFS = os.DirFS(*dir)
+
 	// Execute command
 	switch *command {
 	case "create":
@@ -86,17 +94,17 @@ func main() {
 		}
 		fmt.Printf("Created migration: %s\n", *name)
 	case "up":
-		if err := goose.Up(db, *dir); err != nil {
+		if err := goose.Up(db, migrationsFS); err != nil {
 			log.Fatalf("Failed to run migrations: %v", err)
 		}
 		fmt.Println("Migrations applied successfully")
 	case "down":
-		if err := goose.Down(db, *dir); err != nil {
+		if err := goose.Down(db, migrationsFS); err != nil {
 			log.Fatalf("Failed to rollback migrations: %v", err)
 		}
 		fmt.Println("Migrations rolled back successfully")
 	case "status":
-		if err := goose.Status(db, *dir); err != nil {
+		if err := goose.Status(db, migrationsFS); err != nil {
 			log.Fatalf("Failed to get migration status: %v", err)
 		}
 	default:
