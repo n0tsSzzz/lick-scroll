@@ -40,13 +40,13 @@ func (r *postRepository) Create(post *models.Post) error {
 		if err := tx.Create(post).Error; err != nil {
 			return err
 		}
-		// Create associated images
+		// Create associated images one by one to ensure proper ID generation
 		if len(post.Images) > 0 {
 			for i := range post.Images {
 				post.Images[i].PostID = post.ID
-			}
-			if err := tx.Create(&post.Images).Error; err != nil {
-				return err
+				if err := tx.Create(&post.Images[i]).Error; err != nil {
+					return err
+				}
 			}
 		}
 		return nil

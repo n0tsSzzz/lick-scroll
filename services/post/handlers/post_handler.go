@@ -174,6 +174,7 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 			}
 
 			postImages = append(postImages, models.PostImage{
+				ID:       uuid.New().String(), // Explicitly generate UUID for each image
 				ImageURL: imageURL,
 				Order:    i,
 			})
