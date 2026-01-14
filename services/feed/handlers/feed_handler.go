@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -76,21 +77,29 @@ func (h *FeedHandler) GetFeed(c *gin.Context) {
 		postKey := fmt.Sprintf("post:%s", postID)
 		postData, err := h.redisClient.HGetAll(ctx, postKey).Result()
 		if err == nil && len(postData) > 0 {
-			// Skip own posts - don't show creator's posts in their feed
-			if postData["creator_id"] == userID {
-				continue
-			}
+		// Skip own posts - don't show creator's posts in their feed
+		if postData["creator_id"] == userID {
+			continue
+		}
 
-			// All posts are free now - no access restrictions
-			postItem := map[string]interface{}{
-				"id":         postData["id"],
-				"title":      postData["title"],
-				"creator_id": postData["creator_id"],
-				"category":   postData["category"],
-				"media_url":  postData["media_url"],
+		// All posts are free now - no access restrictions
+		postItem := map[string]interface{}{
+			"id":         postData["id"],
+			"title":      postData["title"],
+			"creator_id": postData["creator_id"],
+			"category":   postData["category"],
+			"media_url":  postData["media_url"], // For backward compatibility
+		}
+		
+		// Add images if available
+		if imagesJSON, ok := postData["images"]; ok && imagesJSON != "" {
+			var images []map[string]interface{}
+			if err := json.Unmarshal([]byte(imagesJSON), &images); err == nil {
+				postItem["images"] = images
 			}
-			
-			posts = append(posts, postItem)
+		}
+		
+		posts = append(posts, postItem)
 		}
 	}
 
@@ -145,21 +154,29 @@ func (h *FeedHandler) GetFeedByCategory(c *gin.Context) {
 		postKey := fmt.Sprintf("post:%s", postID)
 		postData, err := h.redisClient.HGetAll(ctx, postKey).Result()
 		if err == nil && len(postData) > 0 {
-			// Skip own posts - don't show creator's posts in their feed
-			if postData["creator_id"] == userID {
-				continue
-			}
+		// Skip own posts - don't show creator's posts in their feed
+		if postData["creator_id"] == userID {
+			continue
+		}
 
-			// All posts are free now - no access restrictions
-			postItem := map[string]interface{}{
-				"id":         postData["id"],
-				"title":      postData["title"],
-				"creator_id": postData["creator_id"],
-				"category":   postData["category"],
-				"media_url":  postData["media_url"],
+		// All posts are free now - no access restrictions
+		postItem := map[string]interface{}{
+			"id":         postData["id"],
+			"title":      postData["title"],
+			"creator_id": postData["creator_id"],
+			"category":   postData["category"],
+			"media_url":  postData["media_url"], // For backward compatibility
+		}
+		
+		// Add images if available
+		if imagesJSON, ok := postData["images"]; ok && imagesJSON != "" {
+			var images []map[string]interface{}
+			if err := json.Unmarshal([]byte(imagesJSON), &images); err == nil {
+				postItem["images"] = images
 			}
-			
-			posts = append(posts, postItem)
+		}
+		
+		posts = append(posts, postItem)
 		}
 	}
 

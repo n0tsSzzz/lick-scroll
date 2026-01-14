@@ -208,10 +208,17 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 		"id":          post.ID,
 		"creator_id":  post.CreatorID,
 		"title":       post.Title,
-		"media_url":   post.MediaURL,
+		"media_url":   post.MediaURL, // For backward compatibility
 		"category":    post.Category,
 		"status":      string(post.Status),
 	}
+	
+	// Add images data if available
+	if len(post.Images) > 0 {
+		imagesJSON, _ := json.Marshal(post.Images)
+		postData["images"] = string(imagesJSON)
+	}
+	
 	for k, v := range postData {
 		h.redisClient.HSet(ctx, postKey, k, v)
 	}
