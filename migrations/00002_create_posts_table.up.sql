@@ -24,7 +24,3 @@ CREATE INDEX idx_posts_status ON posts(status);
 CREATE INDEX idx_posts_deleted_at ON posts(deleted_at);
 -- +goose StatementEnd
 
--- +goose Down
--- +goose StatementBegin
-DROP TABLE IF EXISTS posts;
--- +goose StatementEnd
