@@ -12,7 +12,6 @@ import (
 	"lick-scroll/pkg/config"
 	"lick-scroll/pkg/database"
 	"lick-scroll/pkg/logger"
-	"lick-scroll/pkg/models"
 	"lick-scroll/services/moderation/handlers"
 	"lick-scroll/services/moderation/repository"
 
