@@ -66,13 +66,19 @@ func (h *AnalyticsHandler) GetCreatorStats(c *gin.Context) {
 		revenue = 0
 	}
 
+	subscribers, err := h.analyticsRepo.GetCreatorSubscriberCount(userID)
+	if err != nil {
+		h.logger.Error("Failed to get subscriber count: %v", err)
+		subscribers = 0
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"total_posts":      len(posts),
 		"total_views":      totalViews,
 		"total_donations":  totalDonations,
 		"total_likes":      totalLikes,
 		"total_revenue":    revenue,
-		"views_note":       "Views are incremented when someone views your post via GET /posts/{id}",
+		"total_subscribers": subscribers,
 	})
 }
 
@@ -129,7 +135,6 @@ func (h *AnalyticsHandler) GetPostStats(c *gin.Context) {
 		"likes":           likes,
 		"donations_count": donations,
 		"donations_total": donationAmount,
-		"views_note":      "Views are incremented when someone views your post via GET /posts/{id}",
 	})
 }
 
