@@ -46,11 +46,14 @@ func (h *AnalyticsHandler) GetCreatorStats(c *gin.Context) {
 	}
 
 	totalViews := 0
-	totalPurchases := 0
+	totalDonations := int64(0)
 	totalLikes := int64(0)
 	for _, post := range posts {
 		totalViews += post.Views
-		totalPurchases += post.Purchases
+		donationCount, err := h.analyticsRepo.GetPostDonations(post.ID)
+		if err == nil {
+			totalDonations += donationCount
+		}
 		likeCount, err := h.analyticsRepo.GetPostLikeCount(post.ID)
 		if err == nil {
 			totalLikes += likeCount
@@ -64,17 +67,18 @@ func (h *AnalyticsHandler) GetCreatorStats(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"total_posts":     len(posts),
-		"total_views":     totalViews,
-		"total_purchases": totalPurchases,
-		"total_likes":     totalLikes,
-		"total_revenue":   revenue,
+		"total_posts":      len(posts),
+		"total_views":      totalViews,
+		"total_donations":  totalDonations,
+		"total_likes":      totalLikes,
+		"total_revenue":    revenue,
+		"views_note":       "Views are incremented when someone views your post via GET /posts/{id}",
 	})
 }
 
 // GetPostStats godoc
 // @Summary      Get post statistics
-// @Description  Get statistics for a specific post
+// @Description  Get statistics for a specific post. Views are incremented when someone views the post via GET /posts/{id}. Donations are counted from TransactionTypeDonation.
 // @Tags         analytics
 // @Accept       json
 // @Produce      json
@@ -101,10 +105,16 @@ func (h *AnalyticsHandler) GetPostStats(c *gin.Context) {
 		return
 	}
 
-	purchases, err := h.analyticsRepo.GetPostPurchases(postID)
+	donations, err := h.analyticsRepo.GetPostDonations(postID)
 	if err != nil {
-		h.logger.Error("Failed to get purchases: %v", err)
-		purchases = 0
+		h.logger.Error("Failed to get donations: %v", err)
+		donations = 0
+	}
+
+	donationAmount, err := h.analyticsRepo.GetPostDonationAmount(postID)
+	if err != nil {
+		h.logger.Error("Failed to get donation amount: %v", err)
+		donationAmount = 0
 	}
 
 	likes, err := h.analyticsRepo.GetPostLikeCount(postID)
@@ -113,20 +123,19 @@ func (h *AnalyticsHandler) GetPostStats(c *gin.Context) {
 		likes = 0
 	}
 
-	revenue := post.Price * int(purchases)
-
 	c.JSON(http.StatusOK, gin.H{
-		"post_id":   postID,
-		"views":     post.Views,
-		"likes":     likes,
-		"purchases": purchases,
-		"revenue":   revenue,
+		"post_id":         postID,
+		"views":           post.Views,
+		"likes":           likes,
+		"donations_count": donations,
+		"donations_total": donationAmount,
+		"views_note":      "Views are incremented when someone views your post via GET /posts/{id}",
 	})
 }
 
 // GetRevenue godoc
 // @Summary      Get creator revenue
-// @Description  Get total revenue for the authenticated creator
+// @Description  Get total revenue for the authenticated creator. Revenue is calculated from donations received (TransactionTypeEarn transactions with positive amounts).
 // @Tags         analytics
 // @Accept       json
 // @Produce      json

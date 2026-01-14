@@ -9,7 +9,8 @@ import (
 type AnalyticsRepository interface {
 	GetCreatorPosts(creatorID string) ([]*models.Post, error)
 	GetPostByID(postID string) (*models.Post, error)
-	GetPostPurchases(postID string) (int64, error)
+	GetPostDonations(postID string) (int64, error)
+	GetPostDonationAmount(postID string) (int, error)
 	GetCreatorRevenue(creatorID string) (int, error)
 	GetPostLikeCount(postID string) (int64, error)
 }
@@ -38,22 +39,36 @@ func (r *analyticsRepository) GetPostByID(postID string) (*models.Post, error) {
 	return &post, nil
 }
 
-func (r *analyticsRepository) GetPostPurchases(postID string) (int64, error) {
+func (r *analyticsRepository) GetPostDonations(postID string) (int64, error) {
 	var count int64
+	// Count donations - transactions where user donated to this post
 	if err := r.db.Model(&models.Transaction{}).
-		Where("post_id = ? AND type = ?", postID, models.TransactionTypePurchase).
+		Where("post_id = ? AND type = ?", postID, models.TransactionTypeDonation).
 		Count(&count).Error; err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
+func (r *analyticsRepository) GetPostDonationAmount(postID string) (int, error) {
+	var totalAmount int64
+	// Sum all donations for this post (donations are negative amounts, so we take ABS)
+	if err := r.db.Model(&models.Transaction{}).
+		Where("post_id = ? AND type = ?", postID, models.TransactionTypeDonation).
+		Select("COALESCE(SUM(ABS(amount)), 0)").
+		Scan(&totalAmount).Error; err != nil {
+		return 0, err
+	}
+	return int(totalAmount), nil
+}
+
 func (r *analyticsRepository) GetCreatorRevenue(creatorID string) (int, error) {
 	var totalRevenue int64
+	// Revenue is calculated from TransactionTypeEarn - these are transactions where creator received money
+	// (when someone donates to creator's post, creator gets TransactionTypeEarn with positive amount)
 	err := r.db.Model(&models.Transaction{}).
-		Joins("JOIN posts ON transactions.post_id = posts.id").
-		Where("posts.creator_id = ? AND transactions.type = ?", creatorID, models.TransactionTypePurchase).
-		Select("COALESCE(SUM(ABS(transactions.amount)), 0)").
+		Where("user_id = ? AND type = ? AND amount > 0", creatorID, models.TransactionTypeEarn).
+		Select("COALESCE(SUM(amount), 0)").
 		Scan(&totalRevenue).Error
 	if err != nil {
 		return 0, err

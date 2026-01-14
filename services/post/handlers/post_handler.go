@@ -245,7 +245,8 @@ func (h *PostHandler) GetPost(c *gin.Context) {
 
 	// All posts are free now - no access restrictions
 
-	// Increment views
+	// Increment views when someone directly views the post
+	// Views are counted only for direct post views (GET /posts/{id}), not for feed views
 	go h.postRepo.IncrementViews(postID)
 
 	c.JSON(http.StatusOK, post)
