@@ -3,6 +3,7 @@ package repository
 import (
 	"lick-scroll/pkg/models"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -37,17 +38,37 @@ func NewPostRepository(db *gorm.DB) PostRepository {
 func (r *postRepository) Create(post *models.Post) error {
 	// Create post with images in a transaction
 	return r.db.Transaction(func(tx *gorm.DB) error {
+		// Save images temporarily
+		images := post.Images
+		post.Images = nil // Clear images to prevent automatic association creation
+		
+		// Create post first without images
 		if err := tx.Create(post).Error; err != nil {
 			return err
 		}
+		
 		// Create associated images one by one to ensure proper ID generation
-		if len(post.Images) > 0 {
-			for i := range post.Images {
-				post.Images[i].PostID = post.ID
-				if err := tx.Create(&post.Images[i]).Error; err != nil {
+		if len(images) > 0 {
+			// Track used IDs to ensure uniqueness
+			usedIDs := make(map[string]bool)
+			for i := range images {
+				images[i].PostID = post.ID
+				// Ensure ID is set and unique
+				if images[i].ID == "" {
+					images[i].ID = uuid.New().String()
+				}
+				// If ID is already used, generate a new one
+				for usedIDs[images[i].ID] {
+					images[i].ID = uuid.New().String()
+				}
+				usedIDs[images[i].ID] = true
+				
+				if err := tx.Create(&images[i]).Error; err != nil {
 					return err
 				}
 			}
+			// Restore images to post object
+			post.Images = images
 		}
 		return nil
 	})
