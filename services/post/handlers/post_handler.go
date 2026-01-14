@@ -123,7 +123,7 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 			return
 		}
 
-		files := form.File["images[]"]
+		files := form.File["images"]
 		// Fallback to single "media" file for backward compatibility
 		if len(files) == 0 {
 			mediaFile, err := c.FormFile("media")

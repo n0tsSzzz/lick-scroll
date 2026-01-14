@@ -237,9 +237,9 @@
                         <input type="file" id="postMedia" accept="image/*,video/*">
                     </div>
                     <div class="form-group" id="postImagesGroup" style="display: none;">
-                        <label>Изображения (можно выбрать несколько):</label>
+                        <label>Изображения (можно выбрать несколько, удерживайте Ctrl/Cmd для выбора нескольких файлов):</label>
                         <input type="file" id="postImages" accept="image/*" multiple>
-                        <small>Для фото-постов можно загрузить несколько изображений</small>
+                        <small>Для фото-постов можно загрузить несколько изображений. Выберите несколько файлов, удерживая Ctrl (Windows) или Cmd (Mac)</small>
                     </div>
                     <button onclick="createPost()">Создать пост</button>
                 </div>
@@ -525,6 +525,11 @@
             }
         }
 
+        // Initialize image upload toggle on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            toggleImageUpload();
+        });
+
         async function createPost() {
             const formData = new FormData();
             formData.append('title', document.getElementById('postTitle').value);
@@ -535,11 +540,11 @@
             const postType = document.getElementById('postType').value;
             
             if (postType === 'photo') {
-                // For photo posts, use images[] array
+                // For photo posts, use images array (without brackets for Go compatibility)
                 const imagesInput = document.getElementById('postImages');
                 if (imagesInput.files.length > 0) {
                     for (let i = 0; i < imagesInput.files.length; i++) {
-                        formData.append('images[]', imagesInput.files[i]);
+                        formData.append('images', imagesInput.files[i]);
                     }
                 } else {
                     showResult('postResult', { error: 'Please select at least one image' }, true);
