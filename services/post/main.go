@@ -85,7 +85,14 @@ func main() {
 
 	jwtService := jwt.NewService(cfg.JWTSecret)
 	postRepo := repository.NewPostRepository(db)
-	postHandler := handlers.NewPostHandler(postRepo, s3Client, redisClient, log)
+	
+	// Use fanout service URL from config, default to Docker service name
+	fanoutURL := cfg.FanoutServiceURL
+	if fanoutURL == "http://localhost:8004" {
+		fanoutURL = "http://fanout-service:8004"
+	}
+	
+	postHandler := handlers.NewPostHandler(postRepo, s3Client, redisClient, log, fanoutURL)
 
 	r := gin.Default()
 

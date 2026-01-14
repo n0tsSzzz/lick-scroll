@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"path/filepath"
@@ -19,18 +21,20 @@ import (
 )
 
 type PostHandler struct {
-	postRepo   repository.PostRepository
-	s3Client   *s3.Client
-	redisClient *redis.Client
-	logger     *logger.Logger
+	postRepo      repository.PostRepository
+	s3Client      *s3.Client
+	redisClient   *redis.Client
+	logger        *logger.Logger
+	fanoutServiceURL string
 }
 
-func NewPostHandler(postRepo repository.PostRepository, s3Client *s3.Client, redisClient *redis.Client, logger *logger.Logger) *PostHandler {
+func NewPostHandler(postRepo repository.PostRepository, s3Client *s3.Client, redisClient *redis.Client, logger *logger.Logger, fanoutServiceURL string) *PostHandler {
 	return &PostHandler{
-		postRepo:    postRepo,
-		s3Client:    s3Client,
-		redisClient: redisClient,
-		logger:      logger,
+		postRepo:        postRepo,
+		s3Client:        s3Client,
+		redisClient:     redisClient,
+		logger:          logger,
+		fanoutServiceURL: fanoutServiceURL,
 	}
 }
 
@@ -171,6 +175,45 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 		h.redisClient.LTrim(ctx, categoryFeedKey, 0, 9999)
 		h.redisClient.Expire(ctx, categoryFeedKey, 7*24*time.Hour)
 	}
+
+	// Call fanout service to notify subscribers (async)
+	go func() {
+		fanoutURL := fmt.Sprintf("%s/api/v1/fanout/post/%s", h.fanoutServiceURL, post.ID)
+		fanoutData := map[string]interface{}{
+			"post_id":    post.ID,
+			"creator_id": post.CreatorID,
+			"category":   post.Category,
+		}
+		
+		jsonData, err := json.Marshal(fanoutData)
+		if err != nil {
+			h.logger.Error("Failed to marshal fanout data: %v", err)
+			return
+		}
+
+		req, err := http.NewRequest("POST", fanoutURL, bytes.NewBuffer(jsonData))
+		if err != nil {
+			h.logger.Error("Failed to create fanout request: %v", err)
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", c.GetHeader("Authorization"))
+
+		client := &http.Client{Timeout: 5 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			h.logger.Error("Failed to call fanout service: %v", err)
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			h.logger.Error("Fanout service returned error: %d", resp.StatusCode)
+			return
+		}
+
+		h.logger.Info("Post fanned out successfully: %s", post.ID)
+	}()
 
 	c.JSON(http.StatusCreated, post)
 }

@@ -108,6 +108,7 @@ services:
       S3_BUCKET_NAME: ${S3_BUCKET_NAME:-lick-scroll-content}
       AWS_ENDPOINT: ${AWS_ENDPOINT:-http://minio:9000}
       S3_USE_SSL: ${S3_USE_SSL:-false}
+      FANOUT_SERVICE_URL: http://fanout-service:8004
     ports:
       - "8002:8002"
     depends_on:
