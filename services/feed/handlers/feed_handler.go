@@ -80,6 +80,11 @@ func (h *FeedHandler) GetFeed(c *gin.Context) {
 		postKey := fmt.Sprintf("post:%s", postID)
 		postData, err := h.redisClient.HGetAll(ctx, postKey).Result()
 		if err == nil && len(postData) > 0 {
+			// Skip own posts - don't show creator's posts in their feed
+			if postData["creator_id"] == userID {
+				continue
+			}
+
 			price, _ := strconv.Atoi(postData["price"])
 			hasAccess := false
 			

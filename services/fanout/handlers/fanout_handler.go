@@ -52,6 +52,8 @@ func (h *FanoutHandler) FanoutPost(c *gin.Context) {
 		return
 	}
 
+	h.logger.Info("Found %d subscribers for creator %s", len(subscriptions), req.CreatorID)
+
 	ctx := context.Background()
 
 	// Add post to each subscriber's feed
@@ -89,9 +91,12 @@ func (h *FanoutHandler) FanoutPost(c *gin.Context) {
 	// Send notifications to all subscribers (free subscriptions get notifications)
 	// Create notification tasks and publish to RabbitMQ priority queue
 	notificationTasks := 0
+	freeSubscribers := 0
 	for _, sub := range subscriptions {
+		h.logger.Info("Processing subscription: viewer=%s, type=%s", sub.ViewerID, sub.Type)
 		// Free subscribers get notifications about new posts
 		if sub.Type == models.SubscriptionTypeFree {
+			freeSubscribers++
 			task := map[string]interface{}{
 				"user_id":    sub.ViewerID,
 				"post_id":    req.PostID,
@@ -104,12 +109,16 @@ func (h *FanoutHandler) FanoutPost(c *gin.Context) {
 				// Continue processing other tasks even if one fails
 			} else {
 				notificationTasks++
+				h.logger.Info("Successfully published notification task for user %s", sub.ViewerID)
 			}
 		}
 	}
 
+	h.logger.Info("Total subscribers: %d, Free subscribers: %d, Published tasks: %d", len(subscriptions), freeSubscribers, notificationTasks)
 	if notificationTasks > 0 {
 		h.logger.Info("Published %d notification tasks to RabbitMQ queue", notificationTasks)
+	} else if len(subscriptions) > 0 {
+		h.logger.Info("No notification tasks published (all subscribers are paid or no free subscribers)")
 	}
 
 	c.JSON(http.StatusOK, gin.H{
