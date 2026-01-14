@@ -26,15 +26,40 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	// Build DSN
+	// Build DSN - use environment variables directly if config fails
+	dbHost := os.Getenv("DB_HOST")
+	if dbHost == "" {
+		dbHost = cfg.DBHost
+	}
+	dbPort := os.Getenv("DB_PORT")
+	if dbPort == "" {
+		dbPort = cfg.DBPort
+	}
+	dbUser := os.Getenv("DB_USER")
+	if dbUser == "" {
+		dbUser = cfg.DBUser
+	}
+	dbPassword := os.Getenv("DB_PASSWORD")
+	if dbPassword == "" {
+		dbPassword = cfg.DBPassword
+	}
+	dbName := os.Getenv("DB_NAME")
+	if dbName == "" {
+		dbName = cfg.DBName
+	}
+	dbSSLMode := os.Getenv("DB_SSLMODE")
+	if dbSSLMode == "" {
+		dbSSLMode = cfg.DBSSLMode
+	}
+	
 	dsn := fmt.Sprintf(
 		"host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		cfg.DBHost,
-		cfg.DBUser,
-		cfg.DBPassword,
-		cfg.DBName,
-		cfg.DBPort,
-		cfg.DBSSLMode,
+		dbHost,
+		dbUser,
+		dbPassword,
+		dbName,
+		dbPort,
+		dbSSLMode,
 	)
 
 	// Open database connection

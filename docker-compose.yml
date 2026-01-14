@@ -86,6 +86,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      migrate:
+        condition: service_completed_successfully
 
   post-service:
     build:
@@ -116,6 +120,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      migrate:
+        condition: service_completed_successfully
 
   feed-service:
     build:
@@ -139,6 +147,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      migrate:
+        condition: service_completed_successfully
 
   fanout-service:
     build:
@@ -166,6 +178,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      migrate:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
 
@@ -191,6 +207,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      migrate:
+        condition: service_completed_successfully
 
   notification-service:
     build:
@@ -235,6 +255,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      migrate:
+        condition: service_completed_successfully
 
   analytics-service:
     build:
@@ -258,6 +282,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      migrate:
+        condition: service_completed_successfully
 
   migrate:
     build:
