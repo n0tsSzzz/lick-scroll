@@ -189,7 +189,6 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 		Type:        models.PostType(req.Type),
 		MediaURL:    mediaURL, // For backward compatibility
 		Category:    req.Category,
-		Price:       0, // All posts are free now
 		Status:      models.StatusPending, // Needs moderation
 		Images:      postImages,
 	}
@@ -316,7 +315,27 @@ func (h *PostHandler) GetPost(c *gin.Context) {
 	// Views are counted only for direct post views (GET /posts/{id}), not for feed views
 	go h.postRepo.IncrementViews(postID)
 
-	c.JSON(http.StatusOK, post)
+	// Get like count
+	likeCount, _ := h.postRepo.GetLikeCount(postID)
+
+	response := gin.H{
+		"id":           post.ID,
+		"creator_id":   post.CreatorID,
+		"title":        post.Title,
+		"description":  post.Description,
+		"type":         post.Type,
+		"media_url":    post.MediaURL,
+		"thumbnail_url": post.ThumbnailURL,
+		"category":     post.Category,
+		"status":       post.Status,
+		"views":        post.Views,
+		"likes_count":  likeCount,
+		"images":       post.Images,
+		"created_at":   post.CreatedAt,
+		"updated_at":   post.UpdatedAt,
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // ListPosts godoc
@@ -370,7 +389,29 @@ func (h *PostHandler) ListPosts(c *gin.Context) {
 		result = result[start:end]
 	}
 
-	c.JSON(http.StatusOK, gin.H{"posts": result, "count": len(result)})
+	// Get like counts for all posts
+	postsWithLikes := make([]map[string]interface{}, len(result))
+	for i, post := range result {
+		likeCount, _ := h.postRepo.GetLikeCount(post.ID)
+		postsWithLikes[i] = map[string]interface{}{
+			"id":           post.ID,
+			"creator_id":   post.CreatorID,
+			"title":        post.Title,
+			"description":  post.Description,
+			"type":         post.Type,
+			"media_url":    post.MediaURL,
+			"thumbnail_url": post.ThumbnailURL,
+			"category":     post.Category,
+			"status":       post.Status,
+			"views":        post.Views,
+			"likes_count":  likeCount,
+			"images":       post.Images,
+			"created_at":   post.CreatedAt,
+			"updated_at":   post.UpdatedAt,
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"posts": postsWithLikes, "count": len(postsWithLikes)})
 }
 
 // UpdatePost godoc
@@ -431,7 +472,27 @@ func (h *PostHandler) UpdatePost(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, post)
+	// Get like count
+	likeCount, _ := h.postRepo.GetLikeCount(post.ID)
+
+	response := gin.H{
+		"id":           post.ID,
+		"creator_id":   post.CreatorID,
+		"title":        post.Title,
+		"description":  post.Description,
+		"type":         post.Type,
+		"media_url":    post.MediaURL,
+		"thumbnail_url": post.ThumbnailURL,
+		"category":     post.Category,
+		"status":       post.Status,
+		"views":        post.Views,
+		"likes_count":  likeCount,
+		"images":       post.Images,
+		"created_at":   post.CreatedAt,
+		"updated_at":   post.UpdatedAt,
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // DeletePost godoc
@@ -500,7 +561,29 @@ func (h *PostHandler) GetCreatorPosts(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"posts": posts, "count": len(posts)})
+	// Get like counts for all posts
+	postsWithLikes := make([]map[string]interface{}, len(posts))
+	for i, post := range posts {
+		likeCount, _ := h.postRepo.GetLikeCount(post.ID)
+		postsWithLikes[i] = map[string]interface{}{
+			"id":           post.ID,
+			"creator_id":   post.CreatorID,
+			"title":        post.Title,
+			"description":  post.Description,
+			"type":         post.Type,
+			"media_url":    post.MediaURL,
+			"thumbnail_url": post.ThumbnailURL,
+			"category":     post.Category,
+			"status":       post.Status,
+			"views":        post.Views,
+			"likes_count":  likeCount,
+			"images":       post.Images,
+			"created_at":   post.CreatedAt,
+			"updated_at":   post.UpdatedAt,
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"posts": postsWithLikes, "count": len(postsWithLikes)})
 }
 
 // LikePost godoc
