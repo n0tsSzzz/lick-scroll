@@ -16,6 +16,10 @@ type LikeModel struct {
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
+func (LikeModel) TableName() string {
+	return "likes"
+}
+
 func (l *LikeModel) BeforeCreate(tx *gorm.DB) error {
 	if l.ID == "" {
 		l.ID = uuid.New().String()

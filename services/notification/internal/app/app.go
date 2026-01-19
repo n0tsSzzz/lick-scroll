@@ -15,19 +15,27 @@ import (
 	"lick-scroll/pkg/middleware"
 	"lick-scroll/pkg/queue"
 	notificationHTTP "lick-scroll/services/notification/internal/controller/http"
+	"lick-scroll/services/notification/internal/repo/persistent"
 	"lick-scroll/services/notification/internal/usecase"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"gorm.io/gorm"
+
+	_ "lick-scroll/services/notification/docs" // Swagger docs
 )
 
 func Run(cfg *config.Config, log *logger.Logger, db *gorm.DB, redisClient *redis.Client, queueClient *queue.Client) {
 	jwtService := jwt.NewService(cfg.JWTSecret)
 
+	// Initialize Repository
+	notificationRepo := persistent.NewNotificationRepository(db)
+
 	// Initialize UseCase
-	notificationUseCase := usecase.NewNotificationUseCase(db, redisClient, queueClient, log)
+	notificationUseCase := usecase.NewNotificationUseCase(notificationRepo, redisClient, queueClient, log)
 
 	// Initialize HTTP handlers
 	notificationHandler := notificationHTTP.NewNotificationHandler(notificationUseCase, redisClient, log, jwtService)
@@ -49,6 +57,9 @@ func Run(cfg *config.Config, log *logger.Logger, db *gorm.DB, redisClient *redis
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
+
+	// Swagger documentation
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	api := r.Group("/api/v1")
 	// Protected routes - require authentication

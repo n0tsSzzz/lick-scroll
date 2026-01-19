@@ -23,12 +23,7 @@ MVP для инновационной 18+ платформы - гибрид TikT
 ### Архитектурная схема
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    API Gateway (Nginx)                       │
-│                 Единая точка входа                           │
-└─────────────────────────────────────────────────────────────┘
-                              │
-        ┌─────────────────────┼─────────────────────┐
+        ┌─────────────────────┬─────────────────────┐
         │                     │                     │
         ▼                     ▼                     ▼
 ┌──────────────┐      ┌──────────────┐      ┌──────────────┐
@@ -95,7 +90,7 @@ MVP для инновационной 18+ платформы - гибрид TikT
 ### Поток публикации поста
 
 ```
-1. Creator → API Gateway → Post Service (8002)
+1. Creator → Post Service (8002)
    ├─ Аутентификация через User Service (8001)
    ├─ Загрузка медиа в MinIO/S3
    ├─ Сохранение в PostgreSQL
@@ -112,7 +107,7 @@ MVP для инновационной 18+ платформы - гибрид TikT
 ### Поток формирования ленты
 
 ```
-1. User → API Gateway → Feed Service (8003)
+1. User → Feed Service (8003)
    └─ Аутентификация через User Service (8001)
 
 2. Feed Service → User Service (8001) - запрос подписок
@@ -187,7 +182,6 @@ MVP для инновационной 18+ платформы - гибрид TikT
 
 ### Инфраструктура
 
-- **API Gateway (Nginx)** - единая точка входа, маршрутизация запросов к микросервисам
 - **PostgreSQL** - основная база данных для хранения пользователей, постов, транзакций
 - **Redis** - кэширование лент, rate limiting, хранение уведомлений
 - **MinIO/S3** - хранение медиафайлов (фото и видео)
@@ -235,7 +229,7 @@ docker-compose up -d
 Проверьте health check каждого сервиса:
 
 ```bash
-curl http://localhost:8001/health  # User Service
+curl http://localhost:8001/health  # Auth Service
 curl http://localhost:8002/health  # Post Service
 curl http://localhost:8003/health  # Feed Service
 curl http://localhost:8007/health  # Interaction Service
@@ -255,6 +249,8 @@ curl http://localhost:8008/health  # Analytics Service
 - **Wallet Service**: http://localhost:8005/swagger/index.html
 - **Notification Service**: http://localhost:8006/swagger/index.html
 - **Analytics Service**: http://localhost:8008/swagger/index.html
+
+**Примечание**: Для доступа к Swagger документации используйте прямые порты сервисов.
 
 Для генерации документации используйте скрипт:
 ```bash
@@ -306,7 +302,7 @@ lick-scroll/
 
 ### Процесс публикации поста
 
-1. Креатор загружает контент через API Gateway → Post Service
+1. Креатор загружает контент → Post Service
 2. Контент сохраняется в MinIO/S3
 3. Пост создается и сохраняется в PostgreSQL
 4. Пост кэшируется в Redis
@@ -317,7 +313,7 @@ lick-scroll/
 
 ### Процесс формирования ленты
 
-1. Пользователь запрашивает ленту через API Gateway → Feed Service
+1. Пользователь запрашивает ленту → Feed Service
 2. Feed Service проверяет кэш в Redis, если есть - возвращает из кэша
 3. Feed Service запрашивает список подписок из User Service
 4. Feed Service запрашивает последние посты от авторов из PostgreSQL

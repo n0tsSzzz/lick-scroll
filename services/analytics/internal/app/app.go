@@ -14,6 +14,7 @@ import (
 	"lick-scroll/pkg/middleware"
 	analyticsHTTP "lick-scroll/services/analytics/internal/controller/http"
 	"lick-scroll/services/analytics/internal/repo/persistent"
+	"lick-scroll/services/analytics/internal/usecase"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -31,8 +32,11 @@ func Run(cfg *config.Config, log *logger.Logger, db *gorm.DB, redisClient *redis
 	// Initialize repositories
 	analyticsRepo := persistent.NewAnalyticsRepository(db)
 
+	// Initialize UseCase
+	analyticsUseCase := usecase.NewAnalyticsUseCase(analyticsRepo, log)
+
 	// Initialize HTTP handlers
-	analyticsHandler := analyticsHTTP.NewAnalyticsHandler(analyticsRepo, redisClient, log)
+	analyticsHandler := analyticsHTTP.NewAnalyticsHandler(analyticsUseCase, log)
 
 	// Setup router
 	r := gin.Default()

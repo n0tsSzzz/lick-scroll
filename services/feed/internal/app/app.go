@@ -13,6 +13,7 @@ import (
 	"lick-scroll/pkg/logger"
 	"lick-scroll/pkg/middleware"
 	feedHTTP "lick-scroll/services/feed/internal/controller/http"
+	"lick-scroll/services/feed/internal/repo/persistent"
 	"lick-scroll/services/feed/internal/usecase"
 
 	"github.com/gin-contrib/cors"
@@ -34,8 +35,11 @@ func Run(cfg *config.Config, log *logger.Logger, db *gorm.DB, redisClient *redis
 		authServiceURL = "http://auth-service:8001"
 	}
 	
+	// Initialize Repository
+	feedRepo := persistent.NewFeedRepository(db)
+	
 	// Initialize UseCase
-	feedUseCase := usecase.NewFeedUseCase(db, redisClient, log, authServiceURL, cfg)
+	feedUseCase := usecase.NewFeedUseCase(feedRepo, redisClient, log, authServiceURL, cfg)
 	
 	// Initialize HTTP handlers
 	feedHandler := feedHTTP.NewFeedHandler(feedUseCase, log)

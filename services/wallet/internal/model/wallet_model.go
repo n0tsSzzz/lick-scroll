@@ -15,6 +15,10 @@ type WalletModel struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+func (WalletModel) TableName() string {
+	return "wallets"
+}
+
 func (w *WalletModel) BeforeCreate(tx *gorm.DB) error {
 	if w.ID == "" {
 		w.ID = uuid.New().String()
@@ -31,6 +35,10 @@ type TransactionModel struct {
 	BalanceBefore int       `json:"balance_before"`
 	BalanceAfter  int       `json:"balance_after"`
 	CreatedAt     time.Time `json:"created_at"`
+}
+
+func (TransactionModel) TableName() string {
+	return "transactions"
 }
 
 func (t *TransactionModel) BeforeCreate(tx *gorm.DB) error {

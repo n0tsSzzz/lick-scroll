@@ -8,21 +8,25 @@ import (
 )
 
 type PostModel struct {
-	ID           string         `gorm:"type:uuid;primary_key" json:"id"`
-	CreatorID    string         `gorm:"type:uuid;not null;index" json:"creator_id"`
-	Title        string         `gorm:"type:varchar(255);not null" json:"title"`
-	Description  string         `gorm:"type:text" json:"description"`
-	Type         string         `gorm:"type:varchar(20);not null" json:"type"`
-	MediaURL     string         `gorm:"type:varchar(500)" json:"media_url"`
-	ThumbnailURL string         `gorm:"type:varchar(500)" json:"thumbnail_url"`
-	Category     string         `gorm:"type:varchar(100)" json:"category"`
-	Status       string         `gorm:"type:varchar(20);default:'pending'" json:"status"`
-	Views        int            `gorm:"default:0" json:"views"`
-	Purchases    int            `gorm:"default:0" json:"purchases"`
-	CreatedAt    time.Time      `json:"created_at"`
-	UpdatedAt    time.Time      `json:"updated_at"`
-	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
+	ID           string           `gorm:"type:uuid;primary_key" json:"id"`
+	CreatorID    string           `gorm:"type:uuid;not null;index" json:"creator_id"`
+	Title        string           `gorm:"type:varchar(255);not null" json:"title"`
+	Description  string           `gorm:"type:text" json:"description"`
+	Type         string           `gorm:"type:varchar(20);not null" json:"type"`
+	MediaURL     string           `gorm:"type:varchar(500)" json:"media_url"`
+	ThumbnailURL string           `gorm:"type:varchar(500)" json:"thumbnail_url"`
+	Category     string           `gorm:"type:varchar(100)" json:"category"`
+	Status       string           `gorm:"type:varchar(20);default:'pending'" json:"status"`
+	Views        int              `gorm:"default:0" json:"views"`
+	Purchases    int              `gorm:"default:0" json:"purchases"`
+	CreatedAt    time.Time        `json:"created_at"`
+	UpdatedAt    time.Time        `json:"updated_at"`
+	DeletedAt    gorm.DeletedAt   `gorm:"index" json:"-"`
 	Images       []PostImageModel `gorm:"foreignKey:PostID" json:"images,omitempty"`
+}
+
+func (PostModel) TableName() string {
+	return "posts"
 }
 
 func (p *PostModel) BeforeCreate(tx *gorm.DB) error {
@@ -41,6 +45,10 @@ type PostImageModel struct {
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
+}
+
+func (PostImageModel) TableName() string {
+	return "post_images"
 }
 
 func (pi *PostImageModel) BeforeCreate(tx *gorm.DB) error {

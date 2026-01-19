@@ -16,6 +16,10 @@ type SubscriptionModel struct {
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
+func (SubscriptionModel) TableName() string {
+	return "subscriptions"
+}
+
 func (s *SubscriptionModel) BeforeCreate(tx *gorm.DB) error {
 	if s.ID == "" {
 		s.ID = uuid.New().String()

@@ -14,3 +14,7 @@ type SubscriptionModel struct {
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 }
+
+func (SubscriptionModel) TableName() string {
+	return "subscriptions"
+}

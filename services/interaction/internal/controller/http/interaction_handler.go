@@ -1,36 +1,24 @@
 package http
 
 import (
-	"context"
-	"fmt"
 	"net/http"
 	"strconv"
-	"time"
 
 	"lick-scroll/pkg/logger"
-	"lick-scroll/pkg/queue"
-	"lick-scroll/services/interaction/internal/repo/persistent"
+	"lick-scroll/services/interaction/internal/usecase"
 
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
-	"gorm.io/gorm"
 )
 
 type InteractionHandler struct {
-	repo        persistent.InteractionRepository
-	postRepo    *gorm.DB // For checking if post exists
-	redisClient *redis.Client
-	queueClient *queue.Client
-	logger      *logger.Logger
+	interactionUseCase usecase.InteractionUseCase
+	logger             *logger.Logger
 }
 
-func NewInteractionHandler(repo persistent.InteractionRepository, db *gorm.DB, redisClient *redis.Client, queueClient *queue.Client, logger *logger.Logger) *InteractionHandler {
+func NewInteractionHandler(interactionUseCase usecase.InteractionUseCase, logger *logger.Logger) *InteractionHandler {
 	return &InteractionHandler{
-		repo:        repo,
-		postRepo:    db,
-		redisClient: redisClient,
-		queueClient: queueClient,
-		logger:      logger,
+		interactionUseCase: interactionUseCase,
+		logger:             logger,
 	}
 }
 
@@ -51,69 +39,21 @@ func (h *InteractionHandler) LikePost(c *gin.Context) {
 	postID := c.Param("post_id")
 	userID := c.GetString("user_id")
 
-	// Check if post exists
-	var count int64
-	if err := h.postRepo.Table("posts").Where("id = ? AND deleted_at IS NULL", postID).Count(&count).Error; err != nil || count == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Post not found"})
-		return
-	}
-
-	// Check if already liked
-	isLiked, err := h.repo.IsLiked(userID, postID)
+	liked, err := h.interactionUseCase.LikePost(userID, postID)
 	if err != nil {
-		h.logger.Error("Failed to check like status: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check like status"})
+		if err.Error() == "post not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		} else {
+			h.logger.Error("Failed to like post: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
 		return
 	}
 
-	ctx := context.Background()
-	redisKey := fmt.Sprintf("post:likes:%s", postID)
-
-	if isLiked {
-		// Unlike
-		if err := h.repo.DeleteLike(userID, postID); err != nil {
-			h.logger.Error("Failed to delete like: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to unlike post"})
-			return
-		}
-		// Decrement Redis counter
-		h.redisClient.Decr(ctx, redisKey)
-		c.JSON(http.StatusOK, gin.H{"message": "Post unliked", "liked": false})
-	} else {
-		// Like
-		if err := h.repo.CreateLike(userID, postID); err != nil {
-			h.logger.Error("Failed to create like: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to like post"})
-			return
-		}
-		// Increment Redis counter
-		h.redisClient.Incr(ctx, redisKey)
-		
-		// Get creator ID for notification
-		var creatorID string
-		if err := h.postRepo.Table("posts").Select("creator_id").Where("id = ?", postID).Scan(&creatorID).Error; err == nil {
-			// Send notification to post creator via RabbitMQ (if not the same user)
-			if creatorID != userID && h.queueClient != nil {
-				go func() {
-					task := map[string]interface{}{
-						"type":       "like",
-						"user_id":    creatorID,
-						"liker_id":   userID,
-						"post_id":    postID,
-						"priority":   3, // Lower priority for likes
-					}
-				
-				h.logger.Info("[NOTIFICATION QUEUE] Publishing like notification task to RabbitMQ: liker_id=%s, creator_id=%s, post_id=%s", userID, creatorID, postID)
-				if err := h.queueClient.PublishNotificationTask(task); err != nil {
-					h.logger.Error("[NOTIFICATION QUEUE] Failed to publish like notification task to RabbitMQ: %v", err)
-				} else {
-						h.logger.Info("[NOTIFICATION QUEUE] Successfully published like notification task to RabbitMQ")
-					}
-				}()
-			}
-		}
-		
+	if liked {
 		c.JSON(http.StatusOK, gin.H{"message": "Post liked", "liked": true})
+	} else {
+		c.JSON(http.StatusOK, gin.H{"message": "Post unliked", "liked": false})
 	}
 }
 
@@ -130,26 +70,11 @@ func (h *InteractionHandler) LikePost(c *gin.Context) {
 func (h *InteractionHandler) GetLikeCount(c *gin.Context) {
 	postID := c.Param("post_id")
 
-	ctx := context.Background()
-	redisKey := fmt.Sprintf("post:likes:%s", postID)
-
-	// Try Redis first
-	countStr, err := h.redisClient.Get(ctx, redisKey).Result()
-	if err == nil {
-		count, _ := strconv.ParseInt(countStr, 10, 64)
-		c.JSON(http.StatusOK, gin.H{"post_id": postID, "likes_count": count})
-		return
-	}
-
-	// Fallback to DB
-	count, err := h.repo.GetLikeCount(postID)
+	count, err := h.interactionUseCase.GetLikeCount(postID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Post not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
-
-	// Cache in Redis
-	h.redisClient.Set(ctx, redisKey, count, 0)
 
 	c.JSON(http.StatusOK, gin.H{"post_id": postID, "likes_count": count})
 }
@@ -168,8 +93,9 @@ func (h *InteractionHandler) IsLiked(c *gin.Context) {
 	postID := c.Param("post_id")
 	userID := c.GetString("user_id")
 
-	isLiked, err := h.repo.IsLiked(userID, postID)
+	isLiked, err := h.interactionUseCase.IsLiked(userID, postID)
 	if err != nil {
+		h.logger.Error("Failed to check like status: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check like status"})
 		return
 	}
@@ -206,7 +132,7 @@ func (h *InteractionHandler) GetLikedPosts(c *gin.Context) {
 		}
 	}
 
-	posts, err := h.repo.GetLikedPosts(userID, limit, offset)
+	posts, err := h.interactionUseCase.GetLikedPosts(userID, limit, offset)
 	if err != nil {
 		h.logger.Error("Failed to get liked posts: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch liked posts"})
@@ -232,34 +158,18 @@ func (h *InteractionHandler) IncrementView(c *gin.Context) {
 	postID := c.Param("post_id")
 	userID := c.GetString("user_id")
 
-	// Check if post exists
-	var count int64
-	if err := h.postRepo.Table("posts").Where("id = ? AND deleted_at IS NULL", postID).Count(&count).Error; err != nil || count == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Post not found"})
-		return
-	}
-
-	// Use Redis to track views - only increment once per user
-	ctx := context.Background()
-	viewKey := fmt.Sprintf("post_viewed:%s:%s", postID, userID)
-	redisViewCountKey := fmt.Sprintf("post:views:%s", postID)
-
-	set, err := h.redisClient.SetNX(ctx, viewKey, "1", 365*24*3600*time.Second).Result()
+	viewed, err := h.interactionUseCase.IncrementView(userID, postID)
 	if err != nil {
-		h.logger.Error("Failed to set view key in Redis: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to track view"})
+		if err.Error() == "post not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		} else {
+			h.logger.Error("Failed to increment view: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
 		return
 	}
 
-	// Only increment if this is the first time this user views the post
-	if set {
-		if err := h.repo.IncrementViews(postID); err != nil {
-			h.logger.Error("Failed to increment views: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to increment views"})
-			return
-		}
-		// Increment Redis counter
-		h.redisClient.Incr(ctx, redisViewCountKey)
+	if viewed {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "View counted",
 			"viewed":  true,
@@ -285,26 +195,11 @@ func (h *InteractionHandler) IncrementView(c *gin.Context) {
 func (h *InteractionHandler) GetViewCount(c *gin.Context) {
 	postID := c.Param("post_id")
 
-	ctx := context.Background()
-	redisKey := fmt.Sprintf("post:views:%s", postID)
-
-	// Try Redis first
-	countStr, err := h.redisClient.Get(ctx, redisKey).Result()
-	if err == nil {
-		count, _ := strconv.ParseInt(countStr, 10, 64)
-		c.JSON(http.StatusOK, gin.H{"post_id": postID, "views_count": count})
-		return
-	}
-
-	// Fallback to DB
-	count, err := h.repo.GetViewCount(postID)
+	count, err := h.interactionUseCase.GetViewCount(postID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Post not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
-
-	// Cache in Redis
-	h.redisClient.Set(ctx, redisKey, count, 0)
 
 	c.JSON(http.StatusOK, gin.H{"post_id": postID, "views_count": count})
 }

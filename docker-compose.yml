@@ -204,27 +204,6 @@ services:
       rabbitmq:
         condition: service_healthy
 
-  # moderation-service:
-  #   build:
-  #     context: .
-  #     dockerfile: services/moderation/Dockerfile
-  #   container_name: lick-scroll-moderation
-  #   env_file:
-  #     - .env
-  #   environment:
-  #     SERVER_PORT: ${MODERATION_SERVICE_PORT:-8007}
-  #     DB_HOST: postgres
-  #     REDIS_HOST: redis
-  #   ports:
-  #     - "${MODERATION_SERVICE_PORT:-8007}:${MODERATION_SERVICE_PORT:-8007}"
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #     migrate:
-  #       condition: service_completed_successfully
-
   analytics-service:
     build:
       context: .

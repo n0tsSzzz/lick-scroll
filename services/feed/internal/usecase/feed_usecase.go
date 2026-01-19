@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,9 +11,9 @@ import (
 
 	"lick-scroll/pkg/config"
 	"lick-scroll/pkg/logger"
+	"lick-scroll/services/feed/internal/repo/persistent"
 
 	"github.com/redis/go-redis/v9"
-	"gorm.io/gorm"
 )
 
 type FeedUseCase interface {
@@ -23,16 +22,16 @@ type FeedUseCase interface {
 }
 
 type feedUseCase struct {
-	db             *gorm.DB
+	feedRepo       persistent.FeedRepository
 	redisClient    *redis.Client
 	logger         *logger.Logger
 	authServiceURL string
 	config         *config.Config
 }
 
-func NewFeedUseCase(db *gorm.DB, redisClient *redis.Client, logger *logger.Logger, authServiceURL string, cfg *config.Config) FeedUseCase {
+func NewFeedUseCase(feedRepo persistent.FeedRepository, redisClient *redis.Client, logger *logger.Logger, authServiceURL string, cfg *config.Config) FeedUseCase {
 	return &feedUseCase{
-		db:             db,
+		feedRepo:       feedRepo,
 		redisClient:    redisClient,
 		logger:         logger,
 		authServiceURL: authServiceURL,
@@ -62,42 +61,21 @@ func (uc *feedUseCase) GetFeed(userID string, limit, offset int, authToken strin
 
 	var subscribedPosts []map[string]interface{}
 	if len(subscriptions) > 0 {
-		query := uc.db.Table("posts").
-			Select("posts.*, post_images.id as image_id, post_images.image_url, post_images.thumbnail_url, post_images.\"order\" as image_order").
-			Joins("LEFT JOIN post_images ON posts.id = post_images.post_id").
-			Where("posts.creator_id IN ? AND posts.deleted_at IS NULL", subscriptions).
-			Order("posts.created_at DESC").
-			Limit(limit * 2)
-
-		rows, err := query.Rows()
-		if err == nil {
-			defer rows.Close()
-			subscribedPosts = uc.scanPostsFromRows(rows)
-		} else {
+		posts, err := uc.feedRepo.GetPostsByCreatorIDs(subscriptions, limit*2)
+		if err != nil {
 			uc.logger.Error("Failed to get posts from subscribed creators: %v", err)
+		} else {
+			subscribedPosts = posts
 		}
 	}
 
-	var otherPosts []map[string]interface{}
-	query := uc.db.Table("posts").
-		Select("posts.*, post_images.id as image_id, post_images.image_url, post_images.thumbnail_url, post_images.\"order\" as image_order").
-		Joins("LEFT JOIN post_images ON posts.id = post_images.post_id").
-		Where("posts.creator_id != ? AND posts.deleted_at IS NULL", userID).
-		Order("posts.created_at DESC").
-		Limit(limit * 2)
-
-	if len(subscriptions) > 0 {
-		query = query.Where("posts.creator_id NOT IN ?", subscriptions)
-	}
-
-	rows, err := query.Rows()
-	if err == nil {
-		defer rows.Close()
-		otherPosts = uc.scanPostsFromRows(rows)
-	} else {
+	otherPosts, err := uc.feedRepo.GetOtherPosts(userID, subscriptions, limit*2)
+	if err != nil {
 		uc.logger.Error("Failed to get other posts: %v", err)
 		otherPosts = []map[string]interface{}{}
 	}
+
+	uc.logger.Info("GetFeed: subscribedPosts=%d, otherPosts=%d", len(subscribedPosts), len(otherPosts))
 
 	allPosts := make([]map[string]interface{}, 0, len(subscribedPosts)+len(otherPosts))
 	allPosts = append(allPosts, subscribedPosts...)
@@ -111,23 +89,40 @@ func (uc *feedUseCase) GetFeed(userID string, limit, offset int, authToken strin
 
 	var formattedPosts []map[string]interface{}
 	for _, post := range allPosts {
-		postID := post["id"].(string)
+		postIDStr, ok := post["id"].(string)
+		if !ok {
+			uc.logger.Warn("Post ID is not a string: %v", post["id"])
+			continue
+		}
+		postID := postIDStr
 
 		isLiked := false
 		var likeCount int64
 		if userID != "" {
-			var count int64
-			if err := uc.db.Table("likes").Where("user_id = ? AND post_id = ? AND deleted_at IS NULL", userID, postID).Count(&count).Error; err == nil {
-				isLiked = count > 0
+			var err error
+			isLiked, err = uc.feedRepo.IsLiked(userID, postID)
+			if err != nil {
+				uc.logger.Warn("Failed to check like status: %v", err)
 			}
-			uc.db.Table("likes").Where("post_id = ? AND deleted_at IS NULL", postID).Count(&likeCount)
+			likeCount, err = uc.feedRepo.GetLikeCount(postID)
+			if err != nil {
+				uc.logger.Warn("Failed to get like count: %v", err)
+			}
 		}
 
-		var creator struct {
-			AvatarURL string
-			Username  string
+		creatorIDStr, ok := post["creator_id"].(string)
+		if !ok {
+			uc.logger.Warn("Creator ID is not a string: %v", post["creator_id"])
+			creatorIDStr = ""
 		}
-		uc.db.Table("users").Select("avatar_url, username").Where("id = ?", post["creator_id"]).Scan(&creator)
+		creatorInfo, err := uc.feedRepo.GetCreatorInfo(creatorIDStr)
+		if err != nil {
+			uc.logger.Warn("Failed to get creator info: %v", err)
+			creatorInfo = map[string]interface{}{
+				"avatar_url": "",
+				"username":   "",
+			}
+		}
 
 		images := uc.formatPostImages(post)
 
@@ -137,8 +132,8 @@ func (uc *feedUseCase) GetFeed(userID string, limit, offset int, authToken strin
 			"description":      post["description"],
 			"type":             post["type"],
 			"creator_id":       post["creator_id"],
-			"creator_avatar":   creator.AvatarURL,
-			"creator_username": creator.Username,
+			"creator_avatar":   creatorInfo["avatar_url"],
+			"creator_username": creatorInfo["username"],
 			"category":         post["category"],
 			"images":           images,
 			"likes_count":      likeCount,
@@ -258,59 +253,6 @@ func (uc *feedUseCase) getSubscriptionsFromAuthService(userID, authToken string)
 	}
 
 	return creatorIDs, nil
-}
-
-func (uc *feedUseCase) scanPostsFromRows(rows *sql.Rows) []map[string]interface{} {
-	postMap := make(map[string]map[string]interface{})
-	for rows.Next() {
-		var postID, creatorID, title, description, postType, mediaURL, thumbnailURL, category, status sql.NullString
-		var views, purchases sql.NullInt32
-		var createdAt, updatedAt sql.NullTime
-		var imageID, imageURL, imageThumbnailURL sql.NullString
-		var imageOrder sql.NullInt32
-
-		if err := rows.Scan(&postID, &creatorID, &title, &description, &postType, &mediaURL, &thumbnailURL, &category, &status, &views, &purchases, &createdAt, &updatedAt, &imageID, &imageURL, &imageThumbnailURL, &imageOrder); err != nil {
-			continue
-		}
-
-		if _, exists := postMap[postID.String]; !exists {
-			postMap[postID.String] = map[string]interface{}{
-				"id":           postID.String,
-				"creator_id":   creatorID.String,
-				"title":        title.String,
-				"description":  description.String,
-				"type":         postType.String,
-				"media_url":    mediaURL.String,
-				"thumbnail_url": thumbnailURL.String,
-				"category":     category.String,
-				"status":       status.String,
-				"views":        int(views.Int32),
-				"purchases":    int(purchases.Int32),
-				"created_at":   createdAt.Time,
-				"updated_at":   updatedAt.Time,
-				"images":       []map[string]interface{}{},
-			}
-		}
-
-		if imageID.Valid {
-			images := postMap[postID.String]["images"].([]map[string]interface{})
-			images = append(images, map[string]interface{}{
-				"id":           imageID.String,
-				"post_id":      postID.String,
-				"image_url":    imageURL.String,
-				"thumbnail_url": imageThumbnailURL.String,
-				"order":        int(imageOrder.Int32),
-			})
-			postMap[postID.String]["images"] = images
-		}
-	}
-
-	results := make([]map[string]interface{}, 0, len(postMap))
-	for _, post := range postMap {
-		results = append(results, post)
-	}
-
-	return results
 }
 
 func (uc *feedUseCase) formatPostImages(post map[string]interface{}) []map[string]interface{} {

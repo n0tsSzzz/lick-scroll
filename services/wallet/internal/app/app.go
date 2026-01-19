@@ -14,6 +14,7 @@ import (
 	"lick-scroll/pkg/middleware"
 	walletHTTP "lick-scroll/services/wallet/internal/controller/http"
 	"lick-scroll/services/wallet/internal/repo/persistent"
+	"lick-scroll/services/wallet/internal/usecase"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -31,8 +32,11 @@ func Run(cfg *config.Config, log *logger.Logger, db *gorm.DB, redisClient *redis
 	// Initialize repositories
 	walletRepo := persistent.NewWalletRepository(db)
 
+	// Initialize UseCase
+	walletUseCase := usecase.NewWalletUseCase(walletRepo, redisClient, log)
+
 	// Initialize HTTP handlers
-	walletHandler := walletHTTP.NewWalletHandler(walletRepo, redisClient, log)
+	walletHandler := walletHTTP.NewWalletHandler(walletUseCase, log)
 
 	// Setup router
 	r := gin.Default()

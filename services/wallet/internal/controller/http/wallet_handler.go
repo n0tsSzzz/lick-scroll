@@ -1,30 +1,24 @@
 package http
 
 import (
-	"context"
-	"fmt"
 	"net/http"
 	"strconv"
 
 	"lick-scroll/pkg/logger"
-	"lick-scroll/services/wallet/internal/entity"
-	"lick-scroll/services/wallet/internal/repo/persistent"
+	"lick-scroll/services/wallet/internal/usecase"
 
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 )
 
 type WalletHandler struct {
-	walletRepo  persistent.WalletRepository
-	redisClient *redis.Client
-	logger      *logger.Logger
+	walletUseCase usecase.WalletUseCase
+	logger        *logger.Logger
 }
 
-func NewWalletHandler(walletRepo persistent.WalletRepository, redisClient *redis.Client, logger *logger.Logger) *WalletHandler {
+func NewWalletHandler(walletUseCase usecase.WalletUseCase, logger *logger.Logger) *WalletHandler {
 	return &WalletHandler{
-		walletRepo:  walletRepo,
-		redisClient: redisClient,
-		logger:      logger,
+		walletUseCase: walletUseCase,
+		logger:        logger,
 	}
 }
 
@@ -44,10 +38,10 @@ type TopUpRequest struct {
 func (h *WalletHandler) GetWallet(c *gin.Context) {
 	userID := c.GetString("user_id")
 
-	wallet, err := h.walletRepo.GetOrCreateWallet(userID)
+	wallet, err := h.walletUseCase.GetWallet(userID)
 	if err != nil {
 		h.logger.Error("Failed to get wallet: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get wallet"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -73,32 +67,11 @@ func (h *WalletHandler) TopUp(c *gin.Context) {
 		return
 	}
 
-	wallet, err := h.walletRepo.GetOrCreateWallet(userID)
+	wallet, err := h.walletUseCase.TopUp(userID, req.Amount)
 	if err != nil {
-		h.logger.Error("Failed to get wallet: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get wallet"})
+		h.logger.Error("Failed to top up wallet: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
-	}
-
-	// Update balance
-	balanceBefore := wallet.Balance
-	wallet.Balance += req.Amount
-	if err := h.walletRepo.UpdateWallet(wallet); err != nil {
-		h.logger.Error("Failed to update wallet: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to top up wallet"})
-		return
-	}
-
-	// Create transaction
-	transaction := &entity.Transaction{
-		UserID:        userID,
-		Type:          entity.TransactionTypeEarn,
-		Amount:        req.Amount,
-		BalanceBefore: balanceBefore,
-		BalanceAfter:  wallet.Balance,
-	}
-	if err := h.walletRepo.CreateTransaction(transaction); err != nil {
-		h.logger.Error("Failed to create transaction: %v", err)
 	}
 
 	c.JSON(http.StatusOK, wallet)
@@ -130,79 +103,15 @@ func (h *WalletHandler) DonateToPost(c *gin.Context) {
 		return
 	}
 
-	// Get post creator from cache
-	ctx := context.Background()
-	postKey := fmt.Sprintf("post:%s", postID)
-	creatorID, err := h.redisClient.HGet(ctx, postKey, "creator_id").Result()
+	wallet, err := h.walletUseCase.DonateToPost(userID, postID, req.Amount)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Post not found"})
-		return
-	}
-
-	// Can't donate to yourself
-	if creatorID == userID {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot donate to your own post"})
-		return
-	}
-
-	wallet, err := h.walletRepo.GetOrCreateWallet(userID)
-	if err != nil {
-		h.logger.Error("Failed to get wallet: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get wallet"})
-		return
-	}
-
-	if wallet.Balance < req.Amount {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Insufficient balance"})
-		return
-	}
-
-	// Deduct balance from donor
-	balanceBefore := wallet.Balance
-	wallet.Balance -= req.Amount
-	if err := h.walletRepo.UpdateWallet(wallet); err != nil {
-		h.logger.Error("Failed to update wallet: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process donation"})
-		return
-	}
-
-	// Create transaction for donor
-	donorTransaction := &entity.Transaction{
-		UserID:        userID,
-		PostID:        postID,
-		Type:          entity.TransactionTypeDonation,
-		Amount:        -req.Amount,
-		BalanceBefore: balanceBefore,
-		BalanceAfter:  wallet.Balance,
-	}
-	if err := h.walletRepo.CreateTransaction(donorTransaction); err != nil {
-		h.logger.Error("Failed to create transaction: %v", err)
-	}
-
-	// Add balance to creator
-	creatorWallet, err := h.walletRepo.GetOrCreateWallet(creatorID)
-	if err != nil {
-		h.logger.Error("Failed to get creator wallet: %v", err)
-		// Don't fail the donation, just log the error
-	} else {
-		creatorBalanceBefore := creatorWallet.Balance
-		creatorWallet.Balance += req.Amount
-		if err := h.walletRepo.UpdateWallet(creatorWallet); err != nil {
-			h.logger.Error("Failed to update creator wallet: %v", err)
+		if err.Error() == "post not found" || err.Error() == "cannot donate to your own post" || err.Error() == "insufficient balance" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		} else {
-			// Create transaction for creator
-			creatorTransaction := &entity.Transaction{
-				UserID:        creatorID,
-				PostID:        postID,
-				Type:          entity.TransactionTypeEarn,
-				Amount:        req.Amount,
-				BalanceBefore: creatorBalanceBefore,
-				BalanceAfter:  creatorWallet.Balance,
-			}
-			if err := h.walletRepo.CreateTransaction(creatorTransaction); err != nil {
-				h.logger.Error("Failed to create creator transaction: %v", err)
-			}
+			h.logger.Error("Failed to donate: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		}
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -240,10 +149,10 @@ func (h *WalletHandler) GetTransactions(c *gin.Context) {
 		}
 	}
 
-	transactions, err := h.walletRepo.GetTransactions(userID, limit, offset)
+	transactions, err := h.walletUseCase.GetTransactions(userID, limit, offset)
 	if err != nil {
 		h.logger.Error("Failed to get transactions: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get transactions"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 

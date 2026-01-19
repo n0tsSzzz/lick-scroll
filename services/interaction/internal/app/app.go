@@ -15,11 +15,16 @@ import (
 	"lick-scroll/pkg/queue"
 	interactionHTTP "lick-scroll/services/interaction/internal/controller/http"
 	"lick-scroll/services/interaction/internal/repo/persistent"
+	"lick-scroll/services/interaction/internal/usecase"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"gorm.io/gorm"
+
+	_ "lick-scroll/services/interaction/docs" // Swagger docs
 )
 
 func Run(cfg *config.Config, log *logger.Logger, db *gorm.DB, redisClient *redis.Client, queueClient *queue.Client) {
@@ -27,9 +32,13 @@ func Run(cfg *config.Config, log *logger.Logger, db *gorm.DB, redisClient *redis
 
 	// Initialize repositories
 	interactionRepo := persistent.NewInteractionRepository(db)
+	postRepo := persistent.NewPostRepository(db)
+
+	// Initialize UseCase
+	interactionUseCase := usecase.NewInteractionUseCase(interactionRepo, postRepo, redisClient, queueClient, log)
 
 	// Initialize HTTP handlers
-	interactionHandler := interactionHTTP.NewInteractionHandler(interactionRepo, db, redisClient, queueClient, log)
+	interactionHandler := interactionHTTP.NewInteractionHandler(interactionUseCase, log)
 
 	// Setup router
 	r := gin.Default()
@@ -48,6 +57,10 @@ func Run(cfg *config.Config, log *logger.Logger, db *gorm.DB, redisClient *redis
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
+
+	// Swagger documentation
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
 	api := r.Group("/api/v1")
 	api.Use(middleware.AuthMiddleware(jwtService))
 	api.Use(middleware.RateLimitMiddleware(redisClient, 100, time.Minute))

@@ -9,9 +9,9 @@ import (
 	"lick-scroll/pkg/logger"
 	"lick-scroll/pkg/queue"
 	"lick-scroll/services/notification/internal/entity"
+	"lick-scroll/services/notification/internal/repo/persistent"
 
 	"github.com/redis/go-redis/v9"
-	"gorm.io/gorm"
 )
 
 type NotificationUseCase interface {
@@ -29,18 +29,18 @@ type NotificationUseCase interface {
 }
 
 type notificationUseCase struct {
-	db          *gorm.DB
-	redisClient *redis.Client
-	queueClient *queue.Client
-	logger      *logger.Logger
+	notificationRepo persistent.NotificationRepository
+	redisClient       *redis.Client
+	queueClient       *queue.Client
+	logger            *logger.Logger
 }
 
-func NewNotificationUseCase(db *gorm.DB, redisClient *redis.Client, queueClient *queue.Client, logger *logger.Logger) NotificationUseCase {
+func NewNotificationUseCase(notificationRepo persistent.NotificationRepository, redisClient *redis.Client, queueClient *queue.Client, logger *logger.Logger) NotificationUseCase {
 	return &notificationUseCase{
-		db:          db,
-		redisClient: redisClient,
-		queueClient: queueClient,
-		logger:      logger,
+		notificationRepo: notificationRepo,
+		redisClient:       redisClient,
+		queueClient:       queueClient,
+		logger:            logger,
 	}
 }
 
@@ -216,8 +216,8 @@ func (uc *notificationUseCase) HandleNewPostNotification(task map[string]interfa
 
 	uc.logger.Info("[NOTIFICATION HANDLER] Processing new_post notification: post_id=%s, creator_id=%s", postID, creatorID)
 
-	var creatorUsername string
-	if err := uc.db.Table("users").Where("id = ?", creatorID).Select("username").Scan(&creatorUsername).Error; err != nil {
+	creatorUsername, err := uc.notificationRepo.GetCreatorUsername(creatorID)
+	if err != nil {
 		uc.logger.Warn("[NOTIFICATION HANDLER] Failed to get creator username for ID %s: %v", creatorID, err)
 		creatorUsername = creatorID
 	} else {
@@ -225,17 +225,15 @@ func (uc *notificationUseCase) HandleNewPostNotification(task map[string]interfa
 	}
 
 	uc.logger.Info("[NOTIFICATION HANDLER] Querying subscribers for creator_id=%s", creatorID)
-	var subscriptions []struct {
-		ViewerID string `gorm:"column:viewer_id"`
-	}
-	if err := uc.db.Table("subscriptions").Where("creator_id = ? AND deleted_at IS NULL", creatorID).Select("viewer_id").Find(&subscriptions).Error; err != nil {
+	viewerIDs, err := uc.notificationRepo.GetSubscribers(creatorID)
+	if err != nil {
 		uc.logger.Error("[NOTIFICATION HANDLER] Failed to get subscribers for creator %s: %v", creatorID, err)
 		return err
 	}
 
-	uc.logger.Info("[NOTIFICATION HANDLER] Found %d subscribers for creator %s (%s), post_id=%s", len(subscriptions), creatorID, creatorUsername, postID)
+	uc.logger.Info("[NOTIFICATION HANDLER] Found %d subscribers for creator %s (%s), post_id=%s", len(viewerIDs), creatorID, creatorUsername, postID)
 
-	if len(subscriptions) == 0 {
+	if len(viewerIDs) == 0 {
 		uc.logger.Info("[NOTIFICATION HANDLER] No subscribers found for creator %s, skipping notifications", creatorID)
 		return nil
 	}
@@ -244,10 +242,8 @@ func (uc *notificationUseCase) HandleNewPostNotification(task map[string]interfa
 	notificationsSkipped := 0
 	ctx := context.Background()
 
-	// Create notification for each subscriber
-	for i, subscription := range subscriptions {
-		userID := subscription.ViewerID
-		uc.logger.Info("[NOTIFICATION HANDLER] Processing subscriber %d/%d: viewer_id=%s, creator_id=%s", i+1, len(subscriptions), userID, creatorID)
+	for i, userID := range viewerIDs {
+		uc.logger.Info("[NOTIFICATION HANDLER] Processing subscriber %d/%d: viewer_id=%s, creator_id=%s", i+1, len(viewerIDs), userID, creatorID)
 
 		settingsKey := fmt.Sprintf("notification_settings:%s:%s", userID, creatorID)
 		enabled, err := uc.redisClient.Get(ctx, settingsKey).Result()
@@ -282,7 +278,7 @@ func (uc *notificationUseCase) HandleNewPostNotification(task map[string]interfa
 		uc.logger.Info("[NOTIFICATION HANDLER] Successfully processed notification for user %s about post %s", userID, postID)
 	}
 
-	uc.logger.Info("[NOTIFICATION HANDLER] Completed processing notifications for post %s: sent=%d, skipped=%d, total_subscribers=%d", postID, notificationsSent, notificationsSkipped, len(subscriptions))
+	uc.logger.Info("[NOTIFICATION HANDLER] Completed processing notifications for post %s: sent=%d, skipped=%d, total_subscribers=%d", postID, notificationsSent, notificationsSkipped, len(viewerIDs))
 	return nil
 }
 
@@ -298,8 +294,8 @@ func (uc *notificationUseCase) HandleLikeNotification(task map[string]interface{
 
 	uc.logger.Info("[NOTIFICATION HANDLER] Processing like notification: user_id=%s, liker_id=%s, post_id=%s", userID, likerID, postID)
 
-	var likerUsername string
-	if err := uc.db.Table("users").Where("id = ?", likerID).Select("username").Scan(&likerUsername).Error; err != nil {
+	likerUsername, err := uc.notificationRepo.GetLikerUsername(likerID)
+	if err != nil {
 		likerUsername = "Someone"
 	}
 
@@ -335,8 +331,8 @@ func (uc *notificationUseCase) HandleSubscriptionNotification(task map[string]in
 
 	uc.logger.Info("[NOTIFICATION HANDLER] Processing subscription notification: user_id=%s, subscriber_id=%s", userID, subscriberID)
 
-	var subscriberUsername string
-	if err := uc.db.Table("users").Where("id = ?", subscriberID).Select("username").Scan(&subscriberUsername).Error; err != nil {
+	subscriberUsername, err := uc.notificationRepo.GetSubscriberUsername(subscriberID)
+	if err != nil {
 		subscriberUsername = "Someone"
 	}
 

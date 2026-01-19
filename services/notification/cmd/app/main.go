@@ -9,11 +9,33 @@ import (
 	notificationApp "lick-scroll/services/notification/internal/app"
 
 	"github.com/gin-gonic/gin"
+
+	_ "lick-scroll/services/notification/docs" // Swagger docs
 )
 
 func init() {
 	gin.SetMode(gin.ReleaseMode)
 }
+
+// @title           Notification Service API
+// @version         1.0
+// @description     Notification service for real-time notifications via WebSocket and RabbitMQ
+// @termsOfService  http://swagger.io/terms/
+
+// @contact.name   API Support
+// @contact.url    http://www.swagger.io/support
+// @contact.email  support@swagger.io
+
+// @license.name  Apache 2.0
+// @license.url   http://www.apache.org/licenses/LICENSE-2.0.html
+
+// @host      localhost:8006
+// @BasePath  /api/v1
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Type "Bearer" followed by a space and JWT token.
 
 func main() {
 	cfg, err := config.Load()

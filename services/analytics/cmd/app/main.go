@@ -8,6 +8,8 @@ import (
 	analyticsApp "lick-scroll/services/analytics/internal/app"
 
 	"github.com/gin-gonic/gin"
+
+	_ "lick-scroll/services/analytics/docs" // Swagger docs
 )
 
 func init() {

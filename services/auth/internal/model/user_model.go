@@ -20,6 +20,10 @@ type UserModel struct {
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
+func (UserModel) TableName() string {
+	return "users"
+}
+
 func (u *UserModel) BeforeCreate(tx *gorm.DB) error {
 	if u.ID == "" {
 		u.ID = uuid.New().String()
