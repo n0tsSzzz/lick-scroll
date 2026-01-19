@@ -40,6 +40,7 @@ type Config struct {
 	S3BucketName       string
 	AWSEndpoint        string
 	S3UseSSL           string
+	S3PublicURL        string
 
 	// Services URLs
 	AuthServiceURL        string
@@ -53,7 +54,6 @@ type Config struct {
 }
 
 func Load() (*Config, error) {
-	// Try to load .env file, but don't fail if it doesn't exist
 	_ = godotenv.Load()
 
 	config := &Config{
@@ -84,6 +84,7 @@ func Load() (*Config, error) {
 		S3BucketName:       getEnv("S3_BUCKET_NAME", "lick-scroll-content"),
 		AWSEndpoint:        getEnv("AWS_ENDPOINT", ""),
 		S3UseSSL:           getEnv("S3_USE_SSL", "true"),
+		S3PublicURL:        getEnv("S3_PUBLIC_URL", "http://localhost:9000"),
 
 		AuthServiceURL:        getEnv("AUTH_SERVICE_URL", "http://localhost:8001"),
 		PostServiceURL:        getEnv("POST_SERVICE_URL", "http://localhost:8002"),
@@ -94,9 +95,6 @@ func Load() (*Config, error) {
 		ModerationServiceURL:   getEnv("MODERATION_SERVICE_URL", "http://localhost:8007"),
 		AnalyticsServiceURL:    getEnv("ANALYTICS_SERVICE_URL", "http://localhost:8008"),
 	}
-
-	// JWT_SECRET validation is optional - only required for services that use JWT
-	// If not set, it will use default value and services without JWT will work fine
 
 	return config, nil
 }

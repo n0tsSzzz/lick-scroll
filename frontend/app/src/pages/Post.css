@@ -1,0 +1,154 @@
+.post-page {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.post-loading,
+.post-error {
+  text-align: center;
+  padding: 40px;
+  font-size: 18px;
+  color: #fff;
+}
+
+.post-error button {
+  margin-top: 20px;
+  padding: 10px 20px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.post-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+}
+
+.btn-back,
+.btn-creator {
+  padding: 10px 20px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.btn-back:hover,
+.btn-creator:hover {
+  background: #5568d3;
+}
+
+.post-content {
+  display: flex;
+  gap: 30px;
+}
+
+.post-media-full {
+  flex: 1;
+  min-width: 0;
+}
+
+.post-video-full,
+.post-image-full {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  max-height: 80vh;
+  object-fit: contain;
+}
+
+.post-images-full {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.post-details {
+  flex: 0 0 400px;
+  color: #fff;
+}
+
+.post-details h1 {
+  margin: 0 0 20px 0;
+  font-size: 32px;
+  color: #fff;
+}
+
+.post-description {
+  font-size: 18px;
+  line-height: 1.6;
+  margin: 20px 0;
+  color: #ccc;
+}
+
+.post-category {
+  color: #667eea;
+  font-size: 16px;
+  margin: 20px 0;
+}
+
+.post-stats {
+  display: flex;
+  gap: 20px;
+  margin-top: 30px;
+}
+
+.post-stat {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #fff;
+  font-size: 18px;
+}
+
+.btn-like {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  color: #fff;
+  padding: 5px 10px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.btn-like:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.btn-donate {
+  padding: 12px 24px;
+  background: #ffffff;
+  color: #1a1a1a;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.btn-donate:hover {
+  background: #f5f5f5;
+  border-color: #d0d0d0;
+}
+
+@media (max-width: 768px) {
+  .post-content {
+    flex-direction: column;
+  }
+
+  .post-details {
+    flex: 1;
+  }
+}

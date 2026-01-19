@@ -1,0 +1,215 @@
+.user-profile {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.user-profile-loading,
+.user-profile-error {
+  text-align: center;
+  padding: 40px;
+  font-size: 18px;
+}
+
+.user-profile-header {
+  margin-bottom: 20px;
+}
+
+.btn-back {
+  padding: 10px 20px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.btn-back:hover {
+  background: #5568d3;
+}
+
+.user-profile-content {
+  background: #1a1a1a;
+  border-radius: 8px;
+  padding: 30px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  border: 1px solid #333333;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  margin-bottom: 40px;
+  padding-bottom: 30px;
+  border-bottom: 1px solid #333333;
+}
+
+.user-avatar-large {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid #667eea;
+  flex-shrink: 0;
+}
+
+.user-avatar-large img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-placeholder-large {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 60px;
+  background: #333333;
+}
+
+.user-details {
+  flex: 1;
+}
+
+.user-details h1 {
+  margin: 0 0 10px 0;
+  font-size: 32px;
+  color: #ffffff;
+}
+
+.user-email {
+  color: #cccccc;
+  margin: 0 0 20px 0;
+}
+
+.btn-subscribe {
+  padding: 12px 24px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.btn-subscribe:hover {
+  background: #5568d3;
+}
+
+.btn-subscribe.subscribed {
+  background: #28a745;
+}
+
+.btn-subscribe.subscribed:hover {
+  background: #218838;
+}
+
+.user-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.btn-notifications {
+  padding: 12px 24px;
+  background: #ffffff;
+  color: #1a1a1a;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.btn-notifications:hover {
+  background: #f5f5f5;
+  border-color: #d0d0d0;
+}
+
+.btn-notifications.enabled {
+  background: #28a745;
+  color: white;
+  border-color: #28a745;
+}
+
+.btn-notifications.enabled:hover {
+  background: #218838;
+  border-color: #218838;
+}
+
+.user-posts-section h2 {
+  margin-bottom: 20px;
+  color: #ffffff;
+}
+
+.no-posts {
+  text-align: center;
+  padding: 40px;
+  color: #cccccc;
+  font-size: 18px;
+}
+
+.posts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 20px;
+}
+
+.post-card {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s;
+}
+
+.post-card:hover {
+  transform: scale(1.05);
+}
+
+.post-thumbnail {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.post-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1a1a1a;
+  color: #666;
+}
+
+.post-card-info {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
+  padding: 10px;
+  display: flex;
+  gap: 15px;
+  color: white;
+  font-size: 14px;
+}
+
+.post-likes,
+.post-views {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}

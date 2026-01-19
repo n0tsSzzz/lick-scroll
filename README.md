@@ -8,142 +8,191 @@ MVP для инновационной 18+ платформы - гибрид TikT
 
 ## Архитектура
 
-Проект построен на микросервисной архитектуре с использованием Go. Система состоит из 8 независимых микросервисов, каждый из которых отвечает за свою область функциональности.
+Проект построен на микросервисной архитектуре с использованием Go и следует принципам Clean Architecture. Система состоит из 7 независимых микросервисов, каждый из которых отвечает за свою область функциональности.
+
+### Clean Architecture
+
+Все сервисы следуют единой архитектурной структуре:
+- **Entity** - чистые бизнес-сущности без зависимостей от инфраструктуры
+- **Model** - GORM модели для работы с базой данных
+- **Mapper** - преобразование между Entity и Model
+- **Repository** - слой доступа к данным
+- **UseCase** - бизнес-логика и оркестрация
+- **Handler** - HTTP обработчики запросов
 
 ### Архитектурная схема
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                      Load Balancer / API Gateway                 │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                    API Gateway (Nginx)                       │
+│                 Единая точка входа                           │
+└─────────────────────────────────────────────────────────────┘
                               │
         ┌─────────────────────┼─────────────────────┐
         │                     │                     │
         ▼                     ▼                     ▼
 ┌──────────────┐      ┌──────────────┐      ┌──────────────┐
-│  Web Server  │      │  Web Server  │      │  Web Server  │
-│   Instance 1 │      │   Instance 2 │      │   Instance N │
+│ User Service │      │ Post Service │      │ Feed Service │
+│   :8001      │      │   :8002      │      │   :8003      │
+│              │      │              │      │              │
+└──────────────┘      └──────────────┘      └──────────────┘
+        ▲                     │                     │
+        │                     │                     │
+        │                     ▼                     │
+        │              ┌──────────────┐             │
+        │              │Interaction   │             │
+        │              │Service:8007  │             │
+        │              │(Likes/Views) │             │
+        │              └──────────────┘             │
+        │                     │                     │
+        │                     ▼                     │
+        │              ┌──────────────┐             │
+        │              │ Post Service │             │
+        │              │→ RabbitMQ    │             │
+        │              │  (publish)   │             │
+        │              └──────────────┘             │
+        │                     │                     │
+        │                     ├─────────────────────┐
+        │                     ▼                     ▼
+        │              ┌──────────────┐      ┌──────────────┐
+        │              │RabbitMQ      │      │Notification  │
+        │              │   Queue      │◄─────│  Service:8006│
+        │              │  (events)    │      │  (consume)   │
+        │              └──────────────┘      └──────────────┘
+        │                     ▲                     │
+        │                     │                     │
+        │                     │               (WebSocket)
+        │                     │                     │
+        ▼                     ▼                     ▼
+┌──────────────┐      ┌──────────────┐      ┌──────────────┐
+│Interaction   │      │Wallet Service│      │Notification  │
+│Service:8007  │      │   :8005      │      │  Service:8006│
 └──────────────┘      └──────────────┘      └──────────────┘
         │                     │                     │
         └─────────────────────┼─────────────────────┘
                               │
         ┌─────────────────────┼─────────────────────┐
-        │                     │                     │
         ▼                     ▼                     ▼
 ┌──────────────┐      ┌──────────────┐      ┌──────────────┐
-│ Auth Service │      │ Post Service │      │ Feed Service │
-│   :8001      │      │   :8002      │      │   :8003      │
+│Analytics     │      │              │      │              │
+│Service:8008  │      │              │      │              │
 └──────────────┘      └──────────────┘      └──────────────┘
         │                     │                     │
+        └─────────────────────┼─────────────────────┘
+                              │
+        ┌─────────────────────┼─────────────────────┐
         ▼                     ▼                     ▼
-┌──────────────┐      ┌──────────────┐      ┌──────────────┐
-│Fanout Service│      │Wallet Service│      │Notification  │
-│   :8004      │      │   :8005      │      │  Service:8006│
-└──────────────┘      └──────────────┘      └──────────────┘
+   ┌────────┐  ┌──────┐   ┌────────┐         ┌─────────────┐
+   │Postgres│  │Redis │   │ MinIO  │         │  RabbitMQ   │
+   │   DB   │  │Cache │   │  S3    │         │   Queue     │
+   └────────┘  └──────┘   └────────┘         └─────────────┘
+        ▲                     ▲                     ▲
         │                     │                     │
-        ▼                     ▼                     ▼
-┌──────────────┐      ┌──────────────┐
-│Moderation    │      │Analytics     │
-│Service:8007  │      │Service:8008  │
-└──────────────┘      └──────────────┘
-        │                     │
-        └─────────────────────┘
-                  │
-        ┌─────────┼─────────┐
-        ▼         ▼         ▼
-   ┌────────┐ ┌──────┐ ┌────────┐
-   │Postgres│ │Redis │ │AWS S3  │
-   │   DB   │ │Cache │ │Storage │
-   └────────┘ └──────┘ └────────┘
+        └─────────────────────┴─────────────────────┘
+                  (используют все сервисы)
 ```
 
 ### Поток публикации поста
 
 ```
-1. Creator → Post Service (8002)
-   ├─ Аутентификация через Auth Service (8001)
-   ├─ Загрузка медиа в S3
+1. Creator → API Gateway → Post Service (8002)
+   ├─ Аутентификация через User Service (8001)
+   ├─ Загрузка медиа в MinIO/S3
    ├─ Сохранение в PostgreSQL
    └─ Кэширование в Redis
 
-2. Post Service → Moderation Service (8007)
-   └─ Проверка контента
+2. Post Service → RabbitMQ (публикация события "новый пост")
+   └─ Отправка события в очередь для Notification Service
 
-3. Moderation Service → Fanout Service (8004)
-   └─ Добавление в ленты подписчиков
-
-4. Fanout Service → Redis Cache
-   └─ Обновление лент в кэше
-
-5. Fanout Service → Notification Service (8006)
-   └─ Push-уведомления подписчикам
+3. RabbitMQ → Notification Service (8006) (потребление события)
+   ├─ Получение списка подписчиков из User Service
+   └─ Создание уведомлений для подписчиков через WebSocket
 ```
 
-### Поток составления ленты
+### Поток формирования ленты
 
 ```
-1. User → Feed Service (8003)
-   ├─ Аутентификация через Auth Service (8001)
-   └─ Rate Limiting через Redis
+1. User → API Gateway → Feed Service (8003)
+   └─ Аутентификация через User Service (8001)
 
-2. Feed Service → Redis Cache
-   └─ Извлечение идентификаторов постов
+2. Feed Service → User Service (8001) - запрос подписок
+   └─ Получение списка подписок пользователя
 
-3. Feed Service → Post Service (8002)
-   └─ Получение деталей постов
+3. Feed Service → PostgreSQL (прямой запрос)
+   ├─ Получение постов от авторов из подписок
+   └─ Получение остальных постов
 
-4. Feed Service → User
-   └─ Возврат ленты контента
+4. Feed Service → Redis Cache (проверка кэша)
+   └─ Если кэш актуален, возврат из кэша
+
+5. Feed Service → Сортировка по времени
+   └─ Объединение постов от подписок + остальные посты
+
+6. Feed Service → Redis Cache (обновление кэша)
+   └─ Сохранение ленты в кэш (TTL 10 минут)
+
+7. Feed Service → User
+   └─ Возврат персональной ленты
 ```
+
 
 ### Сервисы
 
-1. **Auth Service** (порт 8001) - Аутентификация и авторизация пользователей
+1. **User Service** (порт 8001, бывший Auth Service) - Аутентификация и управление пользователями
    - Регистрация и вход пользователей
    - Генерация и валидация JWT токенов
-   - Управление ролями (viewer, creator, moderator)
-
-2. **Post Service** (порт 8002) - Управление постами, загрузка контента в S3
-   - CRUD операции с постами
-   - Загрузка медиафайлов (фото/видео до 30 сек)
-   - Кэширование постов в Redis
-   - Интеграция с AWS S3
-
-3. **Feed Service** (порт 8003) - Составление ленты контента из кэша
-   - Получение персонализированной ленты
-   - Фильтрация по категориям
-   - Быстрое извлечение из Redis кэша
-
-4. **Fanout Service** (порт 8004) - Добавление постов в ленты подписчиков
-   - Распределение постов по лентам подписчиков
+   - Управление ролями (viewer, creator)
    - Управление подписками
-   - Обновление кэша лент
+   - Загрузка аватаров в MinIO/S3
+
+2. **Post Service** (порт 8002) - Управление контентом
+   - CRUD операции с постами
+   - Загрузка медиафайлов (фото/видео) в MinIO/S3
+   - Кэширование постов в Redis
+   - Публикация событий в RabbitMQ при создании поста
+   - Поддержка до 10 изображений на пост
+   - Автоматическое определение типа поста (photo/video)
+
+3. **Feed Service** (порт 8003) - Формирование персональной ленты
+   - Запрос подписок из User Service
+   - Получение последних постов от авторов из PostgreSQL
+   - Сортировка постов по времени (подписки первыми)
+   - Объединение постов от подписок с остальными постами
+   - Кэширование лент в Redis (TTL 10 минут)
+
+4. **Interaction Service** (порт 8007) - Взаимодействия с контентом
+   - Лайки постов (toggle - лайк/снятие лайка)
+   - Подсчет просмотров (один раз на пользователя)
+   - Получение списка понравившихся постов
+   - Публикация событий в RabbitMQ при лайках
+   - Кэширование счетчиков в Redis
 
 5. **Wallet Service** (порт 8005) - Управление внутренней валютой и покупками
    - Управление балансом кошелька
    - Покупка постов за внутреннюю валюту
    - История транзакций
 
-6. **Notification Service** (порт 8006) - Отправка уведомлений пользователям
-   - Отправка уведомлений отдельным пользователям
-   - Массовая рассылка
-   - Redis pub/sub для real-time уведомлений
+6. **Notification Service** (порт 8006) - Push-уведомления
+   - Подписка на события через RabbitMQ (новый пост, новый лайк, подписка)
+   - WebSocket для real-time уведомлений
+   - Получение уведомлений пользователя (пагинация)
+   - Управление настройками уведомлений (включение/отключение по креатору)
+   - Хранение уведомлений в Redis (последние 100)
+   - Автоматическая обработка очереди событий
 
-7. **Moderation Service** (порт 8007) - Модерация контента
-   - Предварительная проверка контента
-   - Одобрение/отклонение постов
-   - Триггер fanout после одобрения
-
-8. **Analytics Service** (порт 8008) - Аналитика для креаторов
+7. **Analytics Service** (порт 8008) - Аналитика для креаторов
    - Статистика по просмотрам и покупкам
    - Доходы креаторов
    - Аналитика по отдельным постам
 
 ### Инфраструктура
 
+- **API Gateway (Nginx)** - единая точка входа, маршрутизация запросов к микросервисам
 - **PostgreSQL** - основная база данных для хранения пользователей, постов, транзакций
-- **Redis** - кэширование лент, rate limiting, pub/sub для уведомлений
-- **AWS S3** - хранение медиафайлов (фото и видео)
+- **Redis** - кэширование лент, rate limiting, хранение уведомлений
+- **MinIO/S3** - хранение медиафайлов (фото и видео)
+- **RabbitMQ** - очередь сообщений для асинхронной обработки событий (новый пост, лайк, и т.д.)
+- **WebSocket** - real-time уведомления через Notification Service
 - **Docker** - контейнеризация всех сервисов
 - **Docker Compose** - оркестрация для локальной разработки
 
@@ -151,7 +200,6 @@ MVP для инновационной 18+ платформы - гибрид TikT
 
 - Go 1.21+
 - Docker и Docker Compose
-- AWS аккаунт с настроенным S3 bucket (для production)
 
 ## Установка и запуск
 
@@ -170,10 +218,7 @@ cd lick-scroll
 # JWT Secret (обязательно измените в production!)
 JWT_SECRET=your-super-secret-jwt-key-change-in-production
 
-# AWS S3 (для загрузки медиа)
-AWS_REGION=us-east-1
-AWS_ACCESS_KEY_ID=your-access-key
-AWS_SECRET_ACCESS_KEY=your-secret-key
+# S3 (для загрузки медиа)
 S3_BUCKET_NAME=lick-scroll-content
 ```
 
@@ -190,24 +235,25 @@ docker-compose up -d
 Проверьте health check каждого сервиса:
 
 ```bash
-curl http://localhost:8001/health  # Auth
-curl http://localhost:8002/health  # Post
-curl http://localhost:8003/health  # Feed
-curl http://localhost:8004/health  # Fanout
-curl http://localhost:8005/health  # Wallet
-curl http://localhost:8006/health  # Notification
-curl http://localhost:8007/health  # Moderation
-curl http://localhost:8008/health  # Analytics
+curl http://localhost:8001/health  # User Service
+curl http://localhost:8002/health  # Post Service
+curl http://localhost:8003/health  # Feed Service
+curl http://localhost:8007/health  # Interaction Service
+curl http://localhost:8005/health  # Wallet Service
+curl http://localhost:8006/health  # Notification Service
+curl http://localhost:8008/health  # Analytics Service
 ```
 
 ## Swagger Documentation
 
 Каждый сервис имеет Swagger/OpenAPI документацию, доступную через веб-интерфейс:
 
-- **Auth Service**: http://localhost:8001/swagger/index.html
+- **User Service**: http://localhost:8001/swagger/index.html
 - **Post Service**: http://localhost:8002/swagger/index.html
 - **Feed Service**: http://localhost:8003/swagger/index.html
+- **Interaction Service**: http://localhost:8007/swagger/index.html
 - **Wallet Service**: http://localhost:8005/swagger/index.html
+- **Notification Service**: http://localhost:8006/swagger/index.html
 - **Analytics Service**: http://localhost:8008/swagger/index.html
 
 Для генерации документации используйте скрипт:
@@ -221,94 +267,6 @@ cd services/<service-name>
 swag init -g main.go --output docs
 ```
 
-## API Endpoints
-
-### Auth Service (8001)
-
-- `POST /api/v1/register` - Регистрация пользователя
-- `POST /api/v1/login` - Вход в систему
-- `GET /api/v1/me` - Получить информацию о текущем пользователе
-
-### Post Service (8002)
-
-- `POST /api/v1/posts` - Создать пост (только для креаторов)
-- `GET /api/v1/posts/:id` - Получить пост
-- `GET /api/v1/posts` - Список постов
-- `PUT /api/v1/posts/:id` - Обновить пост
-- `DELETE /api/v1/posts/:id` - Удалить пост
-- `GET /api/v1/posts/creator/:creator_id` - Посты креатора
-
-### Feed Service (8003)
-
-- `GET /api/v1/feed` - Получить ленту пользователя
-- `GET /api/v1/feed/category/:category` - Лента по категории
-
-### Fanout Service (8004)
-
-- `POST /api/v1/fanout/post/:post_id` - Распределить пост по лентам подписчиков
-- `POST /api/v1/subscribe/:creator_id` - Подписаться на креатора
-- `DELETE /api/v1/subscribe/:creator_id` - Отписаться от креатора
-
-### Wallet Service (8005)
-
-- `GET /api/v1/wallet` - Получить баланс кошелька
-- `POST /api/v1/wallet/topup` - Пополнить баланс
-- `POST /api/v1/wallet/purchase/:post_id` - Купить пост
-- `GET /api/v1/wallet/transactions` - История транзакций
-
-### Notification Service (8006)
-
-- `POST /api/v1/notifications/send` - Отправить уведомление пользователю
-- `POST /api/v1/notifications/broadcast` - Массовая рассылка уведомлений
-
-### Moderation Service (8007)
-
-- `POST /api/v1/moderation/review/:post_id` - Проверить пост
-- `GET /api/v1/moderation/pending` - Список постов на модерации
-- `POST /api/v1/moderation/approve/:post_id` - Одобрить пост
-- `POST /api/v1/moderation/reject/:post_id` - Отклонить пост
-
-### Analytics Service (8008)
-
-- `GET /api/v1/analytics/creator/stats` - Статистика креатора
-- `GET /api/v1/analytics/creator/posts/:post_id` - Статистика поста
-- `GET /api/v1/analytics/creator/revenue` - Доходы креатора
-
-## Примеры использования
-
-### Регистрация пользователя
-
-```bash
-curl -X POST http://localhost:8001/api/v1/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com",
-    "username": "username",
-    "password": "password123",
-    "role": "viewer"
-  }'
-```
-
-### Создание поста (креатор)
-
-```bash
-curl -X POST http://localhost:8002/api/v1/posts \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -F "title=My Post" \
-  -F "description=Post description" \
-  -F "type=photo" \
-  -F "category=fetish" \
-  -F "price=100" \
-  -F "media=@/path/to/image.jpg"
-```
-
-### Получение ленты
-
-```bash
-curl -X GET http://localhost:8003/api/v1/feed \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN"
-```
-
 ## Структура проекта
 
 ```
@@ -316,41 +274,58 @@ lick-scroll/
 ├── pkg/                    # Общие пакеты
 │   ├── config/            # Конфигурация
 │   ├── database/          # Подключение к БД
-│   ├── cache/             # Redis клиент
 │   ├── jwt/               # JWT сервис
-│   ├── middleware/        # HTTP middleware
-│   ├── models/            # Модели данных
-│   ├── s3/                # S3 клиент
-│   └── logger/            # Логирование
+│   ├── middleware/        # HTTP middleware (auth, rate limit)
+│   ├── s3/                # S3/MinIO клиент
+│   ├── logger/            # Логирование
+│   └── queue/             # RabbitMQ клиент
 ├── services/              # Микросервисы
-│   ├── auth/
-│   ├── post/
-│   ├── feed/
-│   ├── fanout/
-│   ├── wallet/
-│   ├── notification/
-│   ├── moderation/
-│   └── analytics/
-├── docker-compose.yml     # Docker Compose конфигурация
+│   ├── auth/             # User Service (аутентификация и авторизация)
+│   │   ├── internal/
+│   │   │   ├── entity/   # Бизнес-сущности
+│   │   │   ├── model/     # GORM модели
+│   │   │   ├── repo/      # Репозитории
+│   │   │   ├── usecase/   # Бизнес-логика
+│   │   │   └── controller/http/  # HTTP handlers
+│   ├── post/             # Post Service (управление контентом)
+│   ├── feed/             # Формирование персональной ленты
+│   ├── interaction/      # Взаимодействия (лайки, просмотры)
+│   ├── wallet/           # Управление кошельками
+│   ├── notification/     # Push-уведомления (WebSocket, RabbitMQ)
+│   └── analytics/        # Аналитика
+├── migrations/           # SQL миграции
+├── cmd/                 # CLI утилиты (migrate, seed)
+├── frontend/            # React фронтенд приложение
+├── docker-compose.yml   # Docker Compose конфигурация
+├── Makefile            # Команды для разработки
+├── test_coverage.sh    # Скрипт для проверки покрытия тестами
 └── README.md
 ```
 
 ## Бизнес-логика
 
-### Роли пользователей
-
-- **viewer** - зритель, может просматривать и покупать контент
-- **creator** - креатор, может создавать и монетизировать контент
-- **moderator** - модератор, проверяет контент перед публикацией
-
 ### Процесс публикации поста
 
-1. Креатор загружает контент через Post Service
-2. Контент сохраняется в S3
-3. Пост создается со статусом "pending"
-4. Moderation Service проверяет контент
-5. После одобрения Fanout Service добавляет пост в ленты подписчиков
-6. Notification Service уведомляет подписчиков о новом контенте
+1. Креатор загружает контент через API Gateway → Post Service
+2. Контент сохраняется в MinIO/S3
+3. Пост создается и сохраняется в PostgreSQL
+4. Пост кэшируется в Redis
+5. Post Service публикует событие "новый пост" в RabbitMQ
+6. Notification Service получает событие из RabbitMQ
+7. Notification Service получает список подписчиков из User Service
+8. Notification Service отправляет уведомления подписчикам через WebSocket
+
+### Процесс формирования ленты
+
+1. Пользователь запрашивает ленту через API Gateway → Feed Service
+2. Feed Service проверяет кэш в Redis, если есть - возвращает из кэша
+3. Feed Service запрашивает список подписок из User Service
+4. Feed Service запрашивает последние посты от авторов из PostgreSQL
+5. Feed Service запрашивает остальные посты из PostgreSQL
+6. Feed Service сортирует посты по времени (подписки первыми)
+7. Feed Service объединяет посты от подписок с остальными постами
+8. Feed Service сохраняет ленту в Redis кэш (TTL 10 минут)
+9. Feed Service возвращает персональную ленту пользователю
 
 ### Покупка поста
 
@@ -380,33 +355,28 @@ go run main.go
 
 ### Тестирование
 
+Проект имеет покрытие тестами более 30% кодовой базы. Все тесты покрывают критический бизнес-функционал.
+
+#### Запуск всех тестов
+
 ```bash
 # Запуск всех тестов
-go test ./...
+make test
 
-# Тесты конкретного сервиса
-cd services/auth
-go test ./...
+# Запуск всех тестов с подробным выводом
+make test-v
+
+# Запуск тестов с проверкой покрытия
+make coverage
+
+# Или через скрипт
+./test_coverage.sh
 ```
 
-## Безопасность
+#### Структура тестов
 
-- Все API endpoints (кроме регистрации и входа) требуют JWT токен
-- Пароли хешируются с помощью bcrypt
-- Rate limiting для защиты от злоупотреблений
-- Валидация всех входных данных
-
-## Масштабирование
-
-- Каждый сервис может масштабироваться независимо
-- Redis используется для кэширования и снижения нагрузки на БД
-- S3 для хранения медиафайлов обеспечивает масштабируемость
-
-## Лицензия
-
-[Укажите лицензию]
-
-## Контакты
-
-[Укажите контакты]
-
+Тесты организованы по сервисам и покрывают:
+- Unit тесты для UseCase слоя
+- Integration тесты для Repository слоя
+- Mock тесты для HTTP handlers
+- Тесты для бизнес-логики и валидации

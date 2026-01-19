@@ -1,0 +1,50 @@
+.analytics {
+  width: 100%;
+}
+
+.analytics h1 {
+  margin-bottom: 2rem;
+  color: #ffffff;
+}
+
+.loading, .error {
+  text-align: center;
+  padding: 2rem;
+  color: #ffffff;
+}
+
+.error {
+  color: #ff6b6b;
+  background: #3a1a1a;
+  border-radius: 6px;
+  border: 1px solid #5a2a2a;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1.5rem;
+}
+
+.stat-card {
+  background: #1a1a1a;
+  border-radius: 8px;
+  padding: 1.5rem;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  border: 1px solid #333333;
+}
+
+.stat-card h3 {
+  color: #cccccc;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #667eea;
+  margin: 0;
+}

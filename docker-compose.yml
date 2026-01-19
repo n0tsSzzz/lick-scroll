@@ -1,19 +1,17 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15-alpine
     container_name: lick-scroll-postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: lickscroll
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-lickscroll}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -38,8 +36,8 @@ services:
       - "9000:9000"
       - "9001:9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
@@ -53,11 +51,11 @@ services:
     image: rabbitmq:3-management-alpine
     container_name: lick-scroll-rabbitmq
     ports:
-      - "5672:5672" # AMQP protocol port
-      - "15672:15672" # Management UI
+      - "5672:5672"
+      - "15672:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 30s
@@ -69,18 +67,20 @@ services:
       context: .
       dockerfile: services/auth/Dockerfile
     container_name: lick-scroll-auth
+    env_file:
+      - .env
     environment:
-      SERVER_PORT: "8001"
+      SERVER_PORT: ${AUTH_SERVICE_PORT:-8001}
       DB_HOST: postgres
-      DB_PORT: "5432"
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: lickscroll
       REDIS_HOST: redis
-      REDIS_PORT: "6379"
-      JWT_SECRET: ${JWT_SECRET:-change-this-secret-key-in-production}
+      AWS_ENDPOINT: http://minio:9000
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-lick-scroll-content}
+      S3_PUBLIC_URL: http://localhost:9000
+      S3_USE_SSL: "false"
     ports:
-      - "8001:8001"
+      - "${AUTH_SERVICE_PORT:-8001}:${AUTH_SERVICE_PORT:-8001}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -94,29 +94,27 @@ services:
       context: .
       dockerfile: services/post/Dockerfile
     container_name: lick-scroll-post
+    env_file:
+      - .env
     environment:
-      SERVER_PORT: "8002"
+      SERVER_PORT: ${POST_SERVICE_PORT:-8002}
       DB_HOST: postgres
-      DB_PORT: "5432"
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: lickscroll
       REDIS_HOST: redis
-      REDIS_PORT: "6379"
-      JWT_SECRET: ${JWT_SECRET:-change-this-secret-key-in-production}
-      AWS_REGION: ${AWS_REGION:-us-east-1}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-minioadmin}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-minioadmin}
+      RABBITMQ_HOST: rabbitmq
+      AWS_ENDPOINT: http://minio:9000
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       S3_BUCKET_NAME: ${S3_BUCKET_NAME:-lick-scroll-content}
-      AWS_ENDPOINT: ${AWS_ENDPOINT:-http://minio:9000}
-      S3_USE_SSL: ${S3_USE_SSL:-false}
-      FANOUT_SERVICE_URL: http://fanout-service:8004
+      S3_PUBLIC_URL: http://localhost:9000
+      S3_USE_SSL: "false"
     ports:
-      - "8002:8002"
+      - "${POST_SERVICE_PORT:-8002}:${POST_SERVICE_PORT:-8002}"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
@@ -126,18 +124,14 @@ services:
       context: .
       dockerfile: services/feed/Dockerfile
     container_name: lick-scroll-feed
+    env_file:
+      - .env
     environment:
-      SERVER_PORT: "8003"
+      SERVER_PORT: ${FEED_SERVICE_PORT:-8003}
       DB_HOST: postgres
-      DB_PORT: "5432"
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: lickscroll
       REDIS_HOST: redis
-      REDIS_PORT: "6379"
-      JWT_SECRET: ${JWT_SECRET:-change-this-secret-key-in-production}
     ports:
-      - "8003:8003"
+      - "${FEED_SERVICE_PORT:-8003}:${FEED_SERVICE_PORT:-8003}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -146,27 +140,19 @@ services:
       migrate:
         condition: service_completed_successfully
 
-  fanout-service:
+  interaction-service:
     build:
       context: .
-      dockerfile: services/fanout/Dockerfile
-    container_name: lick-scroll-fanout
+      dockerfile: services/interaction/Dockerfile
+    container_name: lick-scroll-interaction
+    env_file:
+      - .env
     environment:
-      SERVER_PORT: "8004"
+      SERVER_PORT: ${INTERACTION_SERVICE_PORT:-8007}
       DB_HOST: postgres
-      DB_PORT: "5432"
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: lickscroll
       REDIS_HOST: redis
-      REDIS_PORT: "6379"
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_PORT: "5672"
-      RABBITMQ_USER: guest
-      RABBITMQ_PASSWORD: guest
-      JWT_SECRET: ${JWT_SECRET:-change-this-secret-key-in-production}
     ports:
-      - "8004:8004"
+      - "${INTERACTION_SERVICE_PORT:-8007}:${INTERACTION_SERVICE_PORT:-8007}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -174,26 +160,20 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-      rabbitmq:
-        condition: service_healthy
 
   wallet-service:
     build:
       context: .
       dockerfile: services/wallet/Dockerfile
     container_name: lick-scroll-wallet
+    env_file:
+      - .env
     environment:
-      SERVER_PORT: "8005"
+      SERVER_PORT: ${WALLET_SERVICE_PORT:-8005}
       DB_HOST: postgres
-      DB_PORT: "5432"
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: lickscroll
       REDIS_HOST: redis
-      REDIS_PORT: "6379"
-      JWT_SECRET: ${JWT_SECRET:-change-this-secret-key-in-production}
     ports:
-      - "8005:8005"
+      - "${WALLET_SERVICE_PORT:-8005}:${WALLET_SERVICE_PORT:-8005}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -207,64 +187,57 @@ services:
       context: .
       dockerfile: services/notification/Dockerfile
     container_name: lick-scroll-notification
+    env_file:
+      - .env
     environment:
-      SERVER_PORT: "8006"
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_PORT: "5672"
-      RABBITMQ_USER: guest
-      RABBITMQ_PASSWORD: guest
-      JWT_SECRET: ${JWT_SECRET:-change-this-secret-key-in-production}
-    ports:
-      - "8006:8006"
-    depends_on:
-      redis:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-
-  moderation-service:
-    build:
-      context: .
-      dockerfile: services/moderation/Dockerfile
-    container_name: lick-scroll-moderation
-    environment:
-      SERVER_PORT: "8007"
+      SERVER_PORT: ${NOTIFICATION_SERVICE_PORT:-8006}
       DB_HOST: postgres
-      DB_PORT: "5432"
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: lickscroll
       REDIS_HOST: redis
-      REDIS_PORT: "6379"
+      RABBITMQ_HOST: rabbitmq
     ports:
-      - "8007:8007"
+      - "${NOTIFICATION_SERVICE_PORT:-8006}:${NOTIFICATION_SERVICE_PORT:-8006}"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+
+  # moderation-service:
+  #   build:
+  #     context: .
+  #     dockerfile: services/moderation/Dockerfile
+  #   container_name: lick-scroll-moderation
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     SERVER_PORT: ${MODERATION_SERVICE_PORT:-8007}
+  #     DB_HOST: postgres
+  #     REDIS_HOST: redis
+  #   ports:
+  #     - "${MODERATION_SERVICE_PORT:-8007}:${MODERATION_SERVICE_PORT:-8007}"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     migrate:
+  #       condition: service_completed_successfully
 
   analytics-service:
     build:
       context: .
       dockerfile: services/analytics/Dockerfile
     container_name: lick-scroll-analytics
+    env_file:
+      - .env
     environment:
-      SERVER_PORT: "8008"
+      SERVER_PORT: ${ANALYTICS_SERVICE_PORT:-8008}
       DB_HOST: postgres
-      DB_PORT: "5432"
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: lickscroll
       REDIS_HOST: redis
-      REDIS_PORT: "6379"
-      JWT_SECRET: ${JWT_SECRET:-change-this-secret-key-in-production}
     ports:
-      - "8008:8008"
+      - "${ANALYTICS_SERVICE_PORT:-8008}:${ANALYTICS_SERVICE_PORT:-8008}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -278,21 +251,42 @@ services:
       context: .
       dockerfile: cmd/migrate/Dockerfile
     container_name: lick-scroll-migrate
+    env_file:
+      - .env
     environment:
       DB_HOST: postgres
-      DB_PORT: "5432"
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: lickscroll
-      DB_SSLMODE: disable
     command: -dir=/app/migrations -command=up
     depends_on:
       postgres:
         condition: service_healthy
     restart: "no"
 
+  seed:
+    build:
+      context: .
+      dockerfile: cmd/seed/Dockerfile
+    container_name: lick-scroll-seed
+    env_file:
+      - .env
+    environment:
+      DB_HOST: postgres
+      REDIS_HOST: redis
+      AWS_ENDPOINT: http://minio:9000
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-lick-scroll-content}
+      S3_PUBLIC_URL: http://localhost:9000
+      S3_USE_SSL: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
 volumes:
   postgres_data:
   redis_data:
   minio_data:
-

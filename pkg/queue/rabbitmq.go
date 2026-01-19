@@ -141,10 +141,11 @@ func (c *Client) PublishNotificationTask(task map[string]interface{}) error {
 	)
 
 	if err != nil {
+		c.logger.Error("[RABBITMQ] Failed to publish message to exchange=%s, routing_key=%s: %v", NotificationExchange, "new_post", err)
 		return fmt.Errorf("failed to publish message: %w", err)
 	}
 
-	c.logger.Info("Published notification task to queue: %s", string(taskJSON))
+	c.logger.Info("[RABBITMQ] Successfully published notification task to exchange=%s, routing_key=%s, queue=%s: %s", NotificationExchange, "new_post", NotificationQueueName, string(taskJSON))
 	return nil
 }
 
@@ -163,26 +164,31 @@ func (c *Client) ConsumeNotificationTasks(handler func(task map[string]interface
 		return fmt.Errorf("failed to register consumer: %w", err)
 	}
 
-	c.logger.Info("Started consuming from notification queue")
+	c.logger.Info("[RABBITMQ] Started consuming from notification queue: %s", NotificationQueueName)
 
 	go func() {
 		for msg := range msgs {
+			c.logger.Info("[RABBITMQ] Received message from queue: %s, message_size=%d bytes", NotificationQueueName, len(msg.Body))
+			
 			var task map[string]interface{}
 			if err := json.Unmarshal(msg.Body, &task); err != nil {
-				c.logger.Error("Failed to unmarshal notification task: %v", err)
+				c.logger.Error("[RABBITMQ] Failed to unmarshal notification task: %v, body=%s", err, string(msg.Body))
 				msg.Nack(false, false) // Reject and don't requeue
 				continue
 			}
 
+			c.logger.Info("[RABBITMQ] Successfully unmarshaled task: %+v", task)
+
 			// Process task
 			if err := handler(task); err != nil {
-				c.logger.Error("Failed to process notification task: %v", err)
+				c.logger.Error("[RABBITMQ] Handler failed to process notification task: %v, task=%+v", err, task)
 				msg.Nack(false, true) // Reject and requeue
 				continue
 			}
 
 			// Acknowledge message
 			msg.Ack(false)
+			c.logger.Info("[RABBITMQ] Successfully processed and acknowledged task: %+v", task)
 		}
 	}()
 

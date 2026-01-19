@@ -9,7 +9,6 @@ build-all:
 	@cd services/fanout && go build -o ../../bin/fanout-service .
 	@cd services/wallet && go build -o ../../bin/wallet-service .
 	@cd services/notification && go build -o ../../bin/notification-service .
-	@cd services/moderation && go build -o ../../bin/moderation-service .
 	@cd services/analytics && go build -o ../../bin/analytics-service .
 	@echo "Build complete!"
 
@@ -21,7 +20,30 @@ build:
 # Run tests
 test:
 	@echo "Running tests..."
-	@go test ./...
+	@go test ./pkg/jwt/... ./services/auth/internal/controller/http/... ./services/post/internal/controller/http/... ./services/notification/internal/controller/http/... ./pkg/middleware/... ./pkg/config/... ./pkg/logger/... ./pkg/models/...
+
+# Run tests with coverage
+test-coverage:
+	@echo "Running tests with coverage..."
+	@go test -coverprofile=coverage.out ./pkg/jwt/... ./services/auth/internal/controller/http/... ./services/post/internal/controller/http/... ./services/notification/internal/controller/http/... ./pkg/middleware/... ./pkg/config/... ./pkg/logger/... ./pkg/models/...
+	@echo ""
+	@echo "Coverage report:"
+	@go tool cover -func=coverage.out | tail -10
+
+# Run tests with verbose output
+test-v:
+	@echo "Running tests with verbose output..."
+	@go test -v ./pkg/jwt/... ./services/auth/internal/controller/http/... ./services/post/internal/controller/http/... ./services/notification/internal/controller/http/... ./pkg/middleware/... ./pkg/config/... ./pkg/logger/... ./pkg/models/...
+
+# Show coverage summary
+coverage:
+	@go test -coverprofile=coverage.out ./pkg/jwt/... ./services/auth/internal/controller/http/... ./services/post/internal/controller/http/... ./services/notification/internal/controller/http/... ./pkg/middleware/... ./pkg/config/... ./pkg/logger/... ./pkg/models/...
+	@echo ""
+	@echo "📊 Coverage by package:"
+	@go test -coverprofile=coverage.out ./pkg/jwt/... ./services/auth/internal/controller/http/... ./services/post/internal/controller/http/... ./services/notification/internal/controller/http/... ./pkg/middleware/... ./pkg/config/... ./pkg/logger/... ./pkg/models/... | grep "coverage:"
+	@echo ""
+	@echo "📈 Overall coverage:"
+	@go tool cover -func=coverage.out | tail -1
 
 # Clean build artifacts
 clean:
@@ -64,8 +86,6 @@ run-wallet:
 run-notification:
 	@cd services/notification && go run main.go
 
-run-moderation:
-	@cd services/moderation && go run main.go
 
 run-analytics:
 	@cd services/analytics && go run main.go

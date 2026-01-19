@@ -13,9 +13,9 @@ COPY . .
 
 WORKDIR /app/services/wallet
 # Generate Swagger docs
-RUN swag init -g main.go --output docs --parseDependency --parseInternal || true
+RUN swag init -g cmd/app/main.go --output docs --parseDependency --parseInternal || true
 # Build with memory optimizations
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -trimpath -o /app/wallet-service .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -trimpath -o /app/wallet-service ./cmd/app
 
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates

@@ -381,7 +381,7 @@
             auth: 'http://localhost:8001/api/v1',
             post: 'http://localhost:8002/api/v1',
             feed: 'http://localhost:8003/api/v1',
-            fanout: 'http://localhost:8004/api/v1',
+            interaction: 'http://localhost:8007/api/v1',
             wallet: 'http://localhost:8005/api/v1',
             notification: 'http://localhost:8006/api/v1',
             analytics: 'http://localhost:8008/api/v1'
@@ -610,7 +610,7 @@
             }
 
             try {
-                const response = await fetch(`${API_BASE.post}/posts/${postId}/like`, {
+                const response = await fetch(`${API_BASE.interaction}/interactions/posts/${postId}/like`, {
                     method: 'POST',
                     headers: getHeaders()
                 });
@@ -794,13 +794,13 @@
                 return;
             }
 
-            if (!authToken) {
+            if (!authToken || !currentUser) {
                 showResult('subscriptionResult', { error: 'Please login first' }, true);
                 return;
             }
 
             try {
-                const response = await fetch(`${API_BASE.fanout}/subscribe/${creatorId}`, {
+                const response = await fetch(`${API_BASE.auth}/users/${currentUser.id}/subscriptions/${creatorId}`, {
                     method: 'POST',
                     headers: getHeaders()
                 });
@@ -826,13 +826,13 @@
                 return;
             }
 
-            if (!authToken) {
+            if (!authToken || !currentUser) {
                 showResult('subscriptionResult', { error: 'Please login first' }, true);
                 return;
             }
 
             try {
-                const response = await fetch(`${API_BASE.fanout}/subscribe/${creatorId}`, {
+                const response = await fetch(`${API_BASE.auth}/users/${currentUser.id}/subscriptions/${creatorId}`, {
                     method: 'DELETE',
                     headers: getHeaders()
                 });
@@ -857,13 +857,13 @@
                 return;
             }
 
-            if (!authToken) {
+            if (!authToken || !currentUser) {
                 showResult('subscriptionResult', { error: 'Please login first' }, true);
                 return;
             }
 
             try {
-                const response = await fetch(`${API_BASE.fanout}/subscribe/${creatorId}`, {
+                const response = await fetch(`${API_BASE.auth}/users/${currentUser.id}/subscriptions/${creatorId}/status`, {
                     headers: getHeaders()
                 });
 

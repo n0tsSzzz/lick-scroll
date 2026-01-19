@@ -13,9 +13,9 @@ COPY . .
 
 WORKDIR /app/services/analytics
 # Generate Swagger docs
-RUN swag init -g main.go --output docs --parseDependency --parseInternal || true
+RUN swag init -g cmd/app/main.go --output docs --parseDependency --parseInternal || true
 # Build with memory optimizations
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -trimpath -o /app/analytics-service .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -trimpath -o /app/analytics-service ./cmd/app
 
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates

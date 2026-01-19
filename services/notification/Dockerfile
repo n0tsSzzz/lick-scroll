@@ -9,7 +9,7 @@ COPY . .
 
 WORKDIR /app/services/notification
 # Build with memory optimizations
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -trimpath -o /app/notification-service .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -trimpath -o /app/notification-service ./cmd/app
 
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates

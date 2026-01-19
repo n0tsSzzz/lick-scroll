@@ -1,5 +1,6 @@
 FROM golang:1.24-alpine AS builder
 
+
 WORKDIR /app
 
 # Copy go mod files
